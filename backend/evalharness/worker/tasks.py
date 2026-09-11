@@ -284,6 +284,30 @@ def execute_attempt(self: Any, run_id: str, scenario_id: str, repetition: int) -
     return run_async(_execute_attempt(run_id, scenario_id, repetition))
 
 
+def _budget_for(run: Any) -> float | None:
+    """The run's spend ceiling, if one was set at creation."""
+    raw = (run.params or {}).get("max_cost_usd")
+    if raw is None:
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):  # pragma: no cover - params are validated on entry
+        return None
+    return value if value > 0 else None
+
+
+async def _run_spend(database: Database, run_id: str) -> float:
+    """USD already spent by this run's finished attempts.
+
+    Attempts with unknown cost contribute 0 rather than blocking the guard: a
+    ceiling that stops working the moment pricing is unavailable would be worse
+    than one that under-counts.
+    """
+    async with database.session() as session:
+        attempts = await repository.list_attempts(session, run_id)
+    return sum(a.cost_usd for a in attempts if a.cost_usd is not None)
+
+
 async def _execute_attempt(run_id: str, scenario_id: str, repetition: int) -> dict[str, Any]:
     async with database_scope() as database:
         async with database.session() as session:
@@ -303,6 +327,30 @@ async def _execute_attempt(run_id: str, scenario_id: str, repetition: int) -> di
             )
             await _dispatch_finalize_if_done(database, run_id)
             return {"attempt_id": attempt_id, "status": "cancelled"}
+
+        # Spend ceiling (D21). Checked before starting, against what the run's
+        # finished attempts have already cost, so the overshoot is bounded by the
+        # attempts already in flight rather than by the whole remaining fan-out.
+        budget = _budget_for(run)
+        if budget is not None:
+            spent = await _run_spend(database, run_id)
+            if spent > budget:
+                message = (
+                    f"budget stop: run has spent ${spent:.4f} of its "
+                    f"${budget:.2f} max_cost_usd limit"
+                )
+                LOGGER.warning("%s; skipping %s#%s", message, scenario_id, repetition)
+                await _finish_attempt(
+                    database,
+                    run_id,
+                    attempt_id,
+                    scenario_id,
+                    repetition,
+                    AttemptStatus.ERRORED,
+                    error=message,
+                )
+                await _dispatch_finalize_if_done(database, run_id)
+                return {"attempt_id": attempt_id, "status": "errored", "reason": "budget"}
 
         async with database.session() as session:
             await repository.set_attempt_status(
@@ -380,7 +428,10 @@ async def _run_and_persist(
     loaded = load_scenario_for_run(scenario_id, run.config_hashes.get(scenario_id))
     entry = model_entry(run.model_key)
     params = dict(run.params or {})
+    # Harness-level knobs ride in `params` but must never reach the provider:
+    # everything left here is spread into the completion request.
     transcript = params.pop("transcript", None)
+    params.pop("max_cost_usd", None)
     provider = build_provider(entry, loaded, transcript if isinstance(transcript, str) else None)
 
     buffer: list[Event] = []

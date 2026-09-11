@@ -252,3 +252,23 @@ async def test_no_budget_means_every_attempt_runs(monkeypatch: pytest.MonkeyPatc
 
     assert len(results) == 2
     assert all(not r.errored for r in results)
+
+
+# --------------------------------------------------------------------------- #
+# Harness knobs must not reach the provider                                    #
+# --------------------------------------------------------------------------- #
+
+
+def test_harness_knobs_are_stripped_before_the_request() -> None:
+    """`transcript` and `max_cost_usd` ride in a run's params but are ours, not
+    the provider's. Anything left in params is spread into the completion call,
+    so a leak would send an unknown field to the vendor."""
+    params = {"reasoning_effort": "medium", "transcript": "golden", "max_cost_usd": 2.0}
+    stripped = dict(params)
+    stripped.pop("transcript", None)
+    stripped.pop("max_cost_usd", None)
+
+    request = build(entry(), **stripped)
+    assert "transcript" not in request
+    assert "max_cost_usd" not in request
+    assert request["reasoning_effort"] == "medium"

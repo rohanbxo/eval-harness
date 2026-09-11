@@ -109,6 +109,15 @@ class RunCreate(ApiModel):
         default=None,
         description="FakeModel only: transcript stem to replay (default 'golden').",
     )
+    max_cost_usd: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Stop the run once its cumulative cost passes this. Remaining attempts are "
+            "recorded as errored, so they lower coverage rather than counting as model "
+            "failures. Null disables the guard (DECISIONS D21)."
+        ),
+    )
 
 
 class ScenarioStats(ApiModel):

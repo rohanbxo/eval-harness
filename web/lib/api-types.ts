@@ -1210,6 +1210,11 @@ export interface components {
              * @description FakeModel only: transcript stem to replay (default 'golden').
              */
             transcript?: string | null;
+            /**
+             * Max Cost Usd
+             * @description Stop the run once its cumulative cost passes this. Remaining attempts are recorded as errored, so they lower coverage rather than counting as model failures. Null disables the guard (DECISIONS D21).
+             */
+            max_cost_usd?: number | null;
         };
         /** RunDetail */
         RunDetail: {
