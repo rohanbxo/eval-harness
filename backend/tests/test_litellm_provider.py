@@ -16,7 +16,13 @@ from typing import Any
 
 import pytest
 
-from evalharness.runner.litellm_provider import LiteLLMProvider, is_retryable, parse_tool_call
+from evalharness.runner.litellm_provider import (
+    MAX_RETRY_DELAY_S,
+    LiteLLMProvider,
+    is_retryable,
+    parse_tool_call,
+    retry_after_seconds,
+)
 from evalharness.runner.provider import ProviderError
 from evalharness.schema.registry import ModelEntry, Pricing
 
@@ -505,3 +511,83 @@ async def test_cost_reaches_the_assistant_message() -> None:
 def test_provider_name_drives_the_concurrency_bucket(litellm_model: str, expected: str) -> None:
     """The name is the per-provider rate-limit key (SPEC 9.1)."""
     assert provider(Recorder(), entry=entry(litellm_model=litellm_model)).name == expected
+
+
+# --------------------------------------------------------------------------- #
+# Retry-After: the provider knows better than exponential backoff              #
+# --------------------------------------------------------------------------- #
+
+
+class HeaderError(Exception):
+    """A vendor error carrying a Retry-After header, as httpx surfaces it."""
+
+    def __init__(self, retry_after: str) -> None:
+        super().__init__("rate limited")
+        self.status_code = 429
+        self.response = types.SimpleNamespace(headers={"retry-after": retry_after})
+
+
+def test_retry_after_header_is_used() -> None:
+    assert retry_after_seconds(HeaderError("12")) == pytest.approx(12.0)
+
+
+def test_retry_after_header_tolerates_a_seconds_suffix() -> None:
+    assert retry_after_seconds(HeaderError("8s")) == pytest.approx(8.0)
+
+
+def test_a_nonsense_header_falls_through_to_the_message() -> None:
+    exc = HeaderError("soon")
+    exc.args = ("rate limited. Please try again in 3s.",)
+    assert retry_after_seconds(exc) == pytest.approx(3.0)
+
+
+def test_seconds_hint_is_parsed_from_the_message_body() -> None:
+    """Groq states the wait in prose rather than a header."""
+    exc = HttpError(429, "Rate limit reached. Please try again in 7.2375s. Upgrade?")
+    assert retry_after_seconds(exc) == pytest.approx(7.2375)
+
+
+def test_millisecond_hint_is_parsed() -> None:
+    exc = HttpError(429, "Please try again in 764.999999ms. Upgrade?")
+    assert retry_after_seconds(exc) == pytest.approx(0.765, abs=1e-3)
+
+
+def test_no_hint_reports_none() -> None:
+    assert retry_after_seconds(HttpError(500, "internal error")) is None
+
+
+def test_an_absurd_hint_is_capped() -> None:
+    """A provider asking for an hour must not wedge the run."""
+    exc = HttpError(429, "Please try again in 9999s.")
+    assert retry_after_seconds(exc) == pytest.approx(MAX_RETRY_DELAY_S)
+
+
+async def test_backoff_waits_as_long_as_the_provider_asked() -> None:
+    """The bug this fixes: blind backoff undershot a TPM limit every time,
+    spending all five attempts without once waiting long enough."""
+    recorder = Recorder(HttpError(429, "Please try again in 7.2375s."), response())
+    sleep = SleepSpy()
+    await provider(recorder, sleep, base_delay_s=1.0).complete([], [])
+
+    assert len(sleep.delays) == 1
+    # The hint plus a small margin, not the 1s exponential step.
+    assert sleep.delays[0] == pytest.approx(7.7375)
+
+
+async def test_exponential_backoff_wins_when_it_is_longer() -> None:
+    recorder = Recorder(
+        HttpError(429, "Please try again in 0.1s."),
+        HttpError(429, "Please try again in 0.1s."),
+        HttpError(429, "Please try again in 0.1s."),
+        response(),
+    )
+    sleep = SleepSpy()
+    await provider(recorder, sleep, base_delay_s=4.0).complete([], [])
+    assert sleep.delays == [4.0, 8.0, 16.0]
+
+
+async def test_a_hint_never_exceeds_the_cap_during_a_retry() -> None:
+    recorder = Recorder(HttpError(429, "Please try again in 9999s."), response())
+    sleep = SleepSpy()
+    await provider(recorder, sleep).complete([], [])
+    assert sleep.delays[0] == pytest.approx(MAX_RETRY_DELAY_S)

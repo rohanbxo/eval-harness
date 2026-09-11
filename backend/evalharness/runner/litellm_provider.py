@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -46,6 +47,43 @@ def _status_code(exc: BaseException) -> int | None:
     if isinstance(code, str) and code.isdigit():
         return int(code)
     return None
+
+
+#: Providers report how long to wait in two places: a ``Retry-After`` header and,
+#: for Groq, a sentence in the error body. Both are far more accurate than blind
+#: exponential backoff, which systematically undershoots a tokens-per-minute
+#: limit and burns the attempt budget without ever waiting long enough.
+_RETRY_HINT = re.compile(r"try again in\s+([\d.]+)\s*(ms|s)\b", re.IGNORECASE)
+
+#: Never wait longer than this on a provider's say-so.
+MAX_RETRY_DELAY_S: float = 90.0
+
+
+def retry_after_seconds(exc: BaseException) -> float | None:
+    """How long the provider asked us to wait, if it said so at all."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        for name in ("retry-after", "Retry-After", "x-ratelimit-reset-tokens"):
+            try:
+                raw = headers.get(name)
+            except (AttributeError, TypeError):  # pragma: no cover - exotic header objects
+                raw = None
+            if raw is None:
+                continue
+            text = str(raw).strip()
+            try:
+                return min(float(text.removesuffix("s")), MAX_RETRY_DELAY_S)
+            except ValueError:
+                continue
+
+    found = _RETRY_HINT.search(str(exc))
+    if found is None:
+        return None
+    value = float(found.group(1))
+    if found.group(2).lower() == "ms":
+        value /= 1000
+    return min(value, MAX_RETRY_DELAY_S)
 
 
 def is_retryable(exc: BaseException) -> bool:
@@ -129,7 +167,13 @@ class LiteLLMProvider:
                         f"{self.entry.key}: model call failed after {attempt} attempt(s): "
                         f"{type(exc).__name__}: {exc}"
                     ) from exc
-                delay = self.base_delay_s * (2 ** (attempt - 1))
+                # Honor the provider's own guidance when it gives any: a TPM
+                # limit needs the window to roll over, and guessing low just
+                # spends the attempt budget without ever waiting long enough.
+                backoff = self.base_delay_s * (2 ** (attempt - 1))
+                hint = retry_after_seconds(exc)
+                delay = max(backoff, hint + 0.5) if hint is not None else backoff
+                delay = min(delay, MAX_RETRY_DELAY_S)
                 if self._retry_hook is not None:
                     await self._retry_hook(
                         attempt=attempt,
