@@ -339,3 +339,44 @@ The check is *after* each attempt, not before, because an attempt's cost is not 
 until it finishes. So the ceiling can be overshot by at most one attempt — stated here
 rather than implied, since a hard guarantee would require refusing to start any attempt
 that might exceed it, which would make the last portion of every budget unusable.
+
+## D22 — What pre-flight found: three ways provider pinning fails silently
+
+Pinning a provider (D20) turns "OpenRouter picked something odd" into a loud error. The
+first real pre-flight turned three of those up, all before a single scenario ran.
+
+**1. `parallel_tool_calls` makes every endpoint ineligible.** No OpenRouter host lists it
+in `supported_parameters`, so with `require_parameters: true` it filters out the entire
+endpoint set, and `allow_fallbacks: false` turns that into "No endpoints found". The
+harness no longer sends it. Nothing is lost: parallel tool calls are the provider default,
+and the flag's real use is *disabling* them. Models still batch calls natively, which is
+what `meeting-scheduler`'s `parallel` assertion measures.
+
+**2. `temperature` is not a supported parameter on reasoning endpoints.** Both
+`gpt-5.6-terra` and `claude-sonnet-5` rejected `temperature: 0` the same way — and did so
+with reasoning switched off too, so it is the endpoint, not a conflict between the two.
+Those entries now send no temperature at all.
+
+This means **"temperature 0 everywhere" is not achievable** for this model set, and
+claiming it would misdescribe the run. Two of the four are not temperature-controllable;
+their run-to-run variance is real and is exactly what k=3 and pass^k exist to measure.
+Without `require_parameters` the request would have "succeeded" with the temperature
+silently discarded, which is the worse outcome: a run that believes it was deterministic
+and was not.
+
+**3. DeepSeek's own endpoint is listed but not routable.** The endpoints API returns a
+`deepseek` tag for `deepseek/deepseek-v4-pro-0813`, but pinning it 404s — even with
+fallbacks allowed — while the slug routes fine unpinned. The catalogue and the router
+disagree.
+
+Substitute: **Fireworks**, pinned. Full 1,048,576-token context, tool calling and
+`reasoning: high` both confirmed live. Caveat worth stating plainly: OpenRouter reports its
+quantization as `unknown`, not `bf16`. Six hosts were verified routable (Ionstream,
+StreamLake, Alibaba, Together, Fireworks, Cloudflare, DigitalOcean); all report `unknown`.
+So "non-quantized" here means **not declared quantized** — the fp8 and fp4 hosts were
+excluded on their own declarations. It is not positive proof of full precision, and no
+endpoint on this slug offers that proof.
+
+**The general lesson.** Each of these would have been invisible without pinning. Case 2 is
+the worst of them: it would have produced a complete, plausible run whose stated
+configuration was wrong.

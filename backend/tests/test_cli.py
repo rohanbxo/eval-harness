@@ -18,7 +18,8 @@ from evalharness.cli import app
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS_DIR = REPO_ROOT / "scenarios"
-MODELS_FILE = REPO_ROOT / "config" / "models.yaml"
+# The fixture registry: the real one holds only models under evaluation.
+MODELS_FILE = Path(__file__).resolve().parent / "data" / "fake_models.yaml"
 
 runner = CliRunner()
 
@@ -56,7 +57,16 @@ def test_list_models_shows_the_registry() -> None:
     code, output = invoke("list-models", "--models-file", str(MODELS_FILE))
     assert code == 0
     assert "fake" in output
-    assert "opus-5" in output
+    assert "fake-b" in output
+
+
+def test_list_models_reads_the_real_registry() -> None:
+    """The shipped registry must stay loadable and hold only evaluated models."""
+    real = REPO_ROOT / "config" / "models.yaml"
+    code, output = invoke("list-models", "--models-file", str(real))
+    assert code == 0
+    assert "gpt-5.6-terra" in flat(output)
+    assert "fake" not in flat(output)
 
 
 def test_list_models_reports_a_missing_registry_clearly() -> None:

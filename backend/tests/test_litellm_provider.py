@@ -216,12 +216,26 @@ def test_request_carries_model_params_and_drop_params() -> None:
     assert "tool_choice" not in built
 
 
-def test_tools_enable_auto_choice_and_parallel_calls() -> None:
+def test_tools_enable_auto_choice() -> None:
     tools = [{"type": "function", "function": {"name": "search", "parameters": {}}}]
     built = provider(Recorder()).build_request([], tools)
     assert built["tools"] == tools
     assert built["tool_choice"] == "auto"
-    assert built["parallel_tool_calls"] is True
+
+
+def test_parallel_tool_calls_is_never_sent() -> None:
+    """Sending it makes every OpenRouter endpoint ineligible (DECISIONS D22).
+
+    No host lists `parallel_tool_calls` in its supported parameters, so with
+    `require_parameters: true` it filters the whole endpoint set out. Omitting it
+    disables nothing -- parallel calls are the provider default either way.
+    """
+    tools = [{"type": "function", "function": {"name": "search", "parameters": {}}}]
+    for supports in (True, False):
+        built = provider(
+            Recorder(), entry=entry(supports_parallel_tool_calls=supports)
+        ).build_request([], tools)
+        assert "parallel_tool_calls" not in built
 
 
 def test_parallel_tool_calls_omitted_when_the_model_lacks_support() -> None:

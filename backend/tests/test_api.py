@@ -22,7 +22,8 @@ from httpx import ASGITransport, AsyncClient
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS_DIR = REPO_ROOT / "scenarios"
-MODELS_FILE = REPO_ROOT / "config" / "models.yaml"
+# The fixture registry: the real one holds only models under evaluation.
+MODELS_FILE = Path(__file__).resolve().parent / "data" / "fake_models.yaml"
 
 
 @pytest.fixture(scope="module")

@@ -1,86 +1,65 @@
 # Model registry (SPEC 7). Adding a model requires only a new entry here.
-# `litellm_model` is any LiteLLM model string; keys come from the environment.
+#
+# Everything goes through OpenRouter, and every entry pins the upstream host it
+# may be served by (DECISIONS D20). OpenRouter serves one slug from many hosts
+# that differ in quantization, context window and tool-calling fidelity; without
+# a pin, a re-route is indistinguishable from a model regression.
+#
+# `reasoning_effort` is per model because the supported values differ. The
+# intent across this set is "medium", mapped to the nearest value each model
+# actually accepts.
 models:
-  # --- FakeModel: scripted transcripts, no network. Used by tests and validate. ---
-  - key: fake
-    display_name: "FakeModel (scripted transcripts)"
-    litellm_model: "fake/transcript"
+  - key: gpt-5.6-terra
+    display_name: "OpenAI GPT-5.6 Terra"
+    litellm_model: "openrouter/openai/gpt-5.6-terra"
+    # No temperature: this endpoint does not list `temperature` among its
+    # supported parameters, so sending it filters the endpoint out entirely
+    # (DECISIONS D22). Reasoning models of this family are not temperature-
+    # controllable; k=3 and pass^k are what measure the resulting variance.
     params: {}
+    reasoning_effort: medium
+    provider_routing:
+      order: [openai]
+      allow_fallbacks: false
     supports_parallel_tool_calls: true
-    api_key_env: null
-    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+    api_key_env: OPENROUTER_API_KEY
 
-  # A second scripted key, so the leaderboard and compare views can be exercised
-  # with two models without touching a provider (SPEC 13, Phase 7).
-  - key: fake-b
-    display_name: "FakeModel B (scripted transcripts)"
-    litellm_model: "fake/transcript"
-    params: {}
-    supports_parallel_tool_calls: true
-    api_key_env: null
-    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
-
-  # --- Anthropic ---
-  - key: opus-5
-    display_name: "Anthropic Claude Opus 5"
-    litellm_model: "anthropic/claude-opus-5"
-    params: {temperature: 0}
-    supports_parallel_tool_calls: true
-    api_key_env: ANTHROPIC_API_KEY
-
-  - key: sonnet-5
+  - key: claude-sonnet-5
     display_name: "Anthropic Claude Sonnet 5"
-    litellm_model: "anthropic/claude-sonnet-5"
-    params: {temperature: 0}
+    litellm_model: "openrouter/anthropic/claude-sonnet-5"
+    # No temperature, for the same reason as gpt-5.6-terra above (D22).
+    params: {}
+    reasoning_effort: medium
+    provider_routing:
+      order: [anthropic]
+      allow_fallbacks: false
     supports_parallel_tool_calls: true
-    api_key_env: ANTHROPIC_API_KEY
+    api_key_env: OPENROUTER_API_KEY
 
-  - key: haiku-4-5
-    display_name: "Anthropic Claude Haiku 4.5"
-    litellm_model: "anthropic/claude-haiku-4-5-20251001"
+  - key: deepseek-v4-pro
+    display_name: "DeepSeek V4 Pro"
+    litellm_model: "openrouter/deepseek/deepseek-v4-pro-0813"
     params: {temperature: 0}
+    # DeepSeek V4 offers only high/xhigh, so "medium" maps up to high.
+    reasoning_effort: high
+    provider_routing:
+      # DeepSeek's own endpoint IS listed by the endpoints API but is not
+      # routable: pinning `deepseek` 404s even with fallbacks allowed, while the
+      # slug routes fine unpinned. Fireworks is the substitute -- full 1M
+      # context, tool calling confirmed in pre-flight, and not declared as a
+      # quantized endpoint (unlike the fp8/fp4 hosts). See DECISIONS D22.
+      order: [fireworks]
+      allow_fallbacks: false
     supports_parallel_tool_calls: true
-    api_key_env: ANTHROPIC_API_KEY
+    api_key_env: OPENROUTER_API_KEY
 
-  # --- OpenAI ---
-  - key: gpt-4o
-    display_name: "OpenAI GPT-4o"
-    litellm_model: "openai/gpt-4o"
+  - key: gpt-oss-120b-groq
+    display_name: "GPT-OSS 120B (Groq)"
+    litellm_model: "openrouter/openai/gpt-oss-120b"
     params: {temperature: 0}
+    reasoning_effort: medium
+    provider_routing:
+      order: [groq]
+      allow_fallbacks: false
     supports_parallel_tool_calls: true
-    api_key_env: OPENAI_API_KEY
-
-  - key: gpt-4o-mini
-    display_name: "OpenAI GPT-4o mini"
-    litellm_model: "openai/gpt-4o-mini"
-    params: {temperature: 0}
-    supports_parallel_tool_calls: true
-    api_key_env: OPENAI_API_KEY
-
-  # --- Groq (free tier; every Groq-hosted model supports tool use) ---
-  # Model ids move fast here -- the Llama 3.x ids these entries first used were
-  # already retired. The live list for your account is
-  # GET https://api.groq.com/openai/v1/models; if a run 404s, check there.
-  # Cost is reported from LiteLLM's list price, so a free-tier run shows a number
-  # you were never billed for; treat it as relative, not as an invoice.
-  - key: groq-gpt-oss-120b
-    display_name: "Groq GPT-OSS 120B"
-    litellm_model: "groq/openai/gpt-oss-120b"
-    params: {temperature: 0}
-    supports_parallel_tool_calls: true
-    api_key_env: GROQ_API_KEY
-
-  - key: groq-gpt-oss-20b
-    display_name: "Groq GPT-OSS 20B"
-    litellm_model: "groq/openai/gpt-oss-20b"
-    params: {temperature: 0}
-    supports_parallel_tool_calls: true
-    api_key_env: GROQ_API_KEY
-
-  # --- Google ---
-  - key: gemini-2-flash
-    display_name: "Google Gemini 2.0 Flash"
-    litellm_model: "gemini/gemini-2.0-flash"
-    params: {temperature: 0}
-    supports_parallel_tool_calls: true
-    api_key_env: GEMINI_API_KEY
+    api_key_env: OPENROUTER_API_KEY

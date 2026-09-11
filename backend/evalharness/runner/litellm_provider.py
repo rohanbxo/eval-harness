@@ -155,8 +155,12 @@ class LiteLLMProvider:
         if tools:
             request["tools"] = tools
             request.setdefault("tool_choice", "auto")
-            if self.entry.supports_parallel_tool_calls:
-                request["parallel_tool_calls"] = True
+            # `parallel_tool_calls` is deliberately NOT sent. It is the provider
+            # default already, so omitting it does not disable anything -- but no
+            # OpenRouter host advertises it in `supported_parameters`, so sending
+            # it alongside `require_parameters: true` filters out every endpoint
+            # and a pinned model fails with "no endpoints found" (DECISIONS D22).
+            # Set it explicitly through params_override to force the issue.
         return request
 
     async def complete(

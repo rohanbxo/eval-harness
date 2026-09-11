@@ -1,0 +1,26 @@
+# Registry used by the test suite only.
+#
+# `fake` replays a scenario's scripted transcripts with no network and no key,
+# which is how the API, the worker and the CLI exercise the full run path in
+# tests (DECISIONS D5). `fake-b` is a second keyless key so the leaderboard and
+# compare views -- which need two models to mean anything -- can be tested too.
+#
+# These live here rather than in config/models.yaml so the real registry holds
+# only models that are actually under evaluation, and a leaderboard built from
+# it is never polluted by fixtures.
+models:
+  - key: fake
+    display_name: "FakeModel (scripted transcripts)"
+    litellm_model: "fake/transcript"
+    params: {}
+    supports_parallel_tool_calls: true
+    api_key_env: null
+    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+
+  - key: fake-b
+    display_name: "FakeModel B (scripted transcripts)"
+    litellm_model: "fake/transcript"
+    params: {}
+    supports_parallel_tool_calls: true
+    api_key_env: null
+    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
