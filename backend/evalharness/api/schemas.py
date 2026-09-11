@@ -298,6 +298,10 @@ class LeaderboardCell(ApiModel):
     )
     coverage: float = 1.0
     pass_at_1: float = 0.0
+    passed: int = 0
+    graded: int = 0
+    pass_at_1_low: float = Field(default=0.0, description="95% Wilson lower bound.")
+    pass_at_1_high: float = Field(default=1.0, description="95% Wilson upper bound.")
     pass_hat_k: float = 0.0
     axis_scores: dict[str, float] = Field(default_factory=dict)
     cost_usd: float | None = None
@@ -311,6 +315,17 @@ class LeaderboardRow(ApiModel):
     litellm_model: str = ""
     scenarios_covered: int = 0
     pass_at_1: float = 0.0
+    passed: int = 0
+    graded: int = 0
+    pass_at_1_low: float = Field(default=0.0, description="95% Wilson lower bound.")
+    pass_at_1_high: float = Field(default=1.0, description="95% Wilson upper bound.")
+    not_significant_vs_leader: bool = Field(
+        default=False,
+        description=(
+            "This row's 95% interval overlaps the top row's, so the gap between them "
+            "is not established at that level. True for the leader itself."
+        ),
+    )
     pass_hat_k: float = 0.0
     axis_scores: dict[str, float] = Field(default_factory=dict)
     cost_usd: float | None = None

@@ -380,3 +380,70 @@ endpoint on this slug offers that proof.
 **The general lesson.** Each of these would have been invisible without pinning. Case 2 is
 the worst of them: it would have produced a complete, plausible run whose stated
 configuration was wrong.
+
+## D23 — Model swap, and three scenario fixes the first real run exposed
+
+**DeepSeek out, Gemini in.** `deepseek-v4-pro` produced no data: all 15 attempts hit a
+429 from Fireworks' shared upstream pool, and with `allow_fallbacks: false` nothing
+substituted. That is the pin behaving correctly — the run reported 0% coverage and
+`incomplete` rather than a fabricated 0.00 score (D19) — but it also means the slug is not
+dependable on a shared key. Replaced with `gemini-3.5-flash`, pinned to `google-ai-studio`.
+
+Worth noting: unlike the `gpt-5.6-terra` and `claude-sonnet-5` endpoints, Gemini's lists
+`temperature` among its supported parameters, so temperature 0 is genuinely honored there
+and `reasoning_effort: medium` needs no mapping. Three of four models now run at
+temperature 0; the two reasoning endpoints still cannot (D22).
+
+The pin matches three tiers — `google-ai-studio`, `/flex` and `/priority` — and OpenRouter
+reports only the provider name, not the tier, so the trace can prove *who* served a call
+but not *at which tier*. Flagged rather than papered over, since tier affects latency.
+
+### The scenarios were measuring the wrong thing in two places
+
+**refund-policy: `t2-escalation-offered` is now scenario-scoped (v2).** All three models
+failed it, 9/9 — the cross-model check that says "suspect the scenario first". They were
+right to. `gpt-5.6-terra` escalated in every run, on turn 1, one turn before the
+assertion's window; the failure reason even said `it was called 1x outside this scope`.
+Escalating proactively is the preferred behavior done *earlier*, not a miss. Turn-scoping
+an assertion whose behavior can legitimately occur in either turn was the bug.
+
+**travel-booking and meeting-scheduler now pre-authorize the action (both v2).** Two of the
+three failures examined were models doing the task correctly and then asking permission:
+
+- `claude-sonnet-5` found FL-204, checked all four fare rules, and asked
+  *"Shall I go ahead and book this for you?"*
+- `gpt-oss-120b` found the one valid slot, Wed 2026-03-04 14:00, and asked
+  *"Would you like me to create the event and send the invitations?"*
+
+Both were scored as failures for never calling the tool. But these scenarios exist to test
+tool *sequencing* — whether a model checks fare rules before booking, or resolves an
+ambiguous name before scheduling — not whether it seeks consent. Penalising a confirmation
+prompt measured caution and called it incompetence.
+
+The system prompts now state the action is pre-authorized. `meeting-scheduler` keeps its
+clarification requirement intact: ask when ambiguous, act without confirmation once it is
+not. That preserves what turn 1 actually tests.
+
+Not every such failure was consent-seeking: `gpt-oss-120b`'s other `meeting-scheduler`
+failure concluded no common slot existed when one did. That is a real capability failure
+and stays one.
+
+## D24 — 95% Wilson intervals on pass@1, with overlaps flagged
+
+**Spec gap.** §6.3 defines pass@1 and pass^k as point estimates. At k=3 over five
+scenarios a model has 15 observations; at k=5, 25. A leaderboard that orders models by a
+bare rate at that sample size implies precision it does not have.
+
+**Decision.** Every leaderboard cell and row carries a 95% Wilson score interval, and each
+row is flagged `not_significant_vs_leader` when its interval overlaps the top row's.
+
+Wilson rather than the normal approximation because eval results cluster at the
+boundaries, where the normal interval misbehaves and can extend outside [0, 1]. Wilson
+stays inside, and does not collapse to zero width on a clean sweep: 25/25 gives roughly
+[0.87, 1.0] — a perfect small sample still does not prove perfection. At p=0 and p=1 the
+bounds are clamped to exactly 0 and 1, which is their analytic value; floating point
+otherwise lands a few ulps short and renders 100% as 99.99%.
+
+Overlap is a conservative test: non-overlapping intervals do imply a difference, but
+overlapping ones do not prove its absence. The flag therefore says "not significant",
+never "the same".

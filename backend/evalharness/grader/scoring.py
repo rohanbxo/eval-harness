@@ -33,6 +33,52 @@ def score_axes(results: Sequence[AssertionResult]) -> dict[str, float]:
     return {axis: passed[axis] / total for axis, total in sorted(totals.items()) if total}
 
 
+#: z for a two-sided 95% interval.
+WILSON_Z_95: float = 1.959963984540054
+
+
+def wilson_interval(passed: int, total: int, z: float = WILSON_Z_95) -> tuple[float, float]:
+    """95% Wilson score interval for a pass rate.
+
+    Wilson rather than the normal approximation because eval runs are small: at
+    k=5 over five scenarios a model has 25 observations, where the normal
+    interval misbehaves badly near 0 and 1 (it can even extend past them).
+    Wilson stays inside [0, 1] and does not collapse to zero width on a clean
+    sweep -- 25/25 gives roughly [0.87, 1.0], which is the honest statement that
+    a perfect small sample still does not prove perfection.
+
+    Returns (0.0, 1.0) for no observations: maximal uncertainty, not false
+    confidence.
+    """
+    if total <= 0:
+        return (0.0, 1.0)
+    proportion = passed / total
+    denominator = 1 + z**2 / total
+    center = (proportion + z**2 / (2 * total)) / denominator
+    margin = (
+        z / denominator * ((proportion * (1 - proportion) / total + z**2 / (4 * total**2)) ** 0.5)
+    )
+    low = max(0.0, center - margin)
+    high = min(1.0, center + margin)
+    # At p=0 and p=1 the bounds are analytically exactly 0 and 1; floating point
+    # lands a few ulps short, which would make an all-pass run render as 0.9999.
+    if passed == 0:
+        low = 0.0
+    if passed == total:
+        high = 1.0
+    return (low, high)
+
+
+def intervals_overlap(a: tuple[float, float], b: tuple[float, float]) -> bool:
+    """True when two intervals overlap, i.e. the gap is not significant.
+
+    Overlapping 95% intervals mean the difference is not established at that
+    level. (The converse does not hold: non-overlap is a conservative test, so
+    this flags "not significant" rather than asserting significance.)
+    """
+    return a[0] <= b[1] and b[0] <= a[1]
+
+
 def critical_failures(results: Iterable[AssertionResult]) -> list[AssertionResult]:
     return [r for r in results if not r.passed and r.severity is Severity.CRITICAL]
 

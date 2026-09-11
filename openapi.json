@@ -1449,6 +1449,28 @@
       "title": "Pass At 1",
       "default": 0.0
      },
+     "passed": {
+      "type": "integer",
+      "title": "Passed",
+      "default": 0
+     },
+     "graded": {
+      "type": "integer",
+      "title": "Graded",
+      "default": 0
+     },
+     "pass_at_1_low": {
+      "type": "number",
+      "title": "Pass At 1 Low",
+      "description": "95% Wilson lower bound.",
+      "default": 0.0
+     },
+     "pass_at_1_high": {
+      "type": "number",
+      "title": "Pass At 1 High",
+      "description": "95% Wilson upper bound.",
+      "default": 1.0
+     },
      "pass_hat_k": {
       "type": "number",
       "title": "Pass Hat K",
@@ -1560,6 +1582,34 @@
       "type": "number",
       "title": "Pass At 1",
       "default": 0.0
+     },
+     "passed": {
+      "type": "integer",
+      "title": "Passed",
+      "default": 0
+     },
+     "graded": {
+      "type": "integer",
+      "title": "Graded",
+      "default": 0
+     },
+     "pass_at_1_low": {
+      "type": "number",
+      "title": "Pass At 1 Low",
+      "description": "95% Wilson lower bound.",
+      "default": 0.0
+     },
+     "pass_at_1_high": {
+      "type": "number",
+      "title": "Pass At 1 High",
+      "description": "95% Wilson upper bound.",
+      "default": 1.0
+     },
+     "not_significant_vs_leader": {
+      "type": "boolean",
+      "title": "Not Significant Vs Leader",
+      "description": "This row's 95% interval overlaps the top row's, so the gap between them is not established at that level. True for the leader itself.",
+      "default": false
      },
      "pass_hat_k": {
       "type": "number",

@@ -1,5 +1,5 @@
 id: meeting-scheduler
-version: 1
+version: 2
 title: Ambiguous attendee and a single viable slot
 description: >
   Two colleagues are called Sam, so the first turn is unanswerable without asking. Once
@@ -16,8 +16,8 @@ system_prompt: |
   calendars before proposing anything. A slot only works if every attendee, Alex
   included, is free for the whole of it.
 
-  Ask when a request is ambiguous rather than guessing. Do not create events or send
-  email on a guess.
+  Ask when a request is ambiguous. Once it is unambiguous, create the event and send
+  invites without asking for confirmation. Do not create events or send email on a guess.
 limits:
   max_steps_per_turn: 12
   turn_timeout_s: 120

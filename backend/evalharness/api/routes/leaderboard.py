@@ -29,6 +29,7 @@ from evalharness.api.schemas import (
     ScenarioStats,
 )
 from evalharness.db import models, repository
+from evalharness.grader.scoring import intervals_overlap, wilson_interval
 from evalharness.schema.enums import Axis, RunStatus, Severity
 
 router = APIRouter(tags=["leaderboard"])
@@ -110,6 +111,10 @@ async def get_leaderboard(session: SessionDep) -> LeaderboardResponse:
                 incomplete=not stats.complete,
                 coverage=stats.coverage,
                 pass_at_1=stats.pass_at_1,
+                passed=stats.passed,
+                graded=stats.completed,
+                pass_at_1_low=wilson_interval(stats.passed, stats.completed)[0],
+                pass_at_1_high=wilson_interval(stats.passed, stats.completed)[1],
                 pass_hat_k=stats.pass_hat_k,
                 axis_scores=stats.axis_scores,
                 cost_usd=stats.cost_usd,
@@ -132,9 +137,16 @@ async def get_leaderboard(session: SessionDep) -> LeaderboardResponse:
             # A run whose model has since been removed from the registry still has
             # results worth showing; fall back to the key itself.
             display_name, litellm_model = model_key, ""
+        row_passed = sum(c.passed for c in ordered)
+        row_graded = sum(c.graded for c in ordered)
+        low, high = wilson_interval(row_passed, row_graded)
         rows.append(
             LeaderboardRow(
                 model_key=model_key,
+                passed=row_passed,
+                graded=row_graded,
+                pass_at_1_low=low,
+                pass_at_1_high=high,
                 display_name=display_name,
                 litellm_model=litellm_model,
                 scenarios_covered=len(ordered),
@@ -155,6 +167,16 @@ async def get_leaderboard(session: SessionDep) -> LeaderboardResponse:
         )
 
     rows.sort(key=lambda r: (-r.pass_hat_k, -r.pass_at_1, r.model_key))
+
+    # Flag every row whose interval overlaps the leader's: with runs this small a
+    # visible gap in pass@1 is often not established at 95%, and the leaderboard
+    # should say so rather than let the ordering imply more than it shows.
+    if rows:
+        leader = (rows[0].pass_at_1_low, rows[0].pass_at_1_high)
+        for row in rows:
+            row.not_significant_vs_leader = intervals_overlap(
+                leader, (row.pass_at_1_low, row.pass_at_1_high)
+            )
 
     def title_of(scenario_id: str) -> str:
         entry = scenarios_on_disk.get(scenario_id)

@@ -36,19 +36,17 @@ models:
     supports_parallel_tool_calls: true
     api_key_env: OPENROUTER_API_KEY
 
-  - key: deepseek-v4-pro
-    display_name: "DeepSeek V4 Pro"
-    litellm_model: "openrouter/deepseek/deepseek-v4-pro-0813"
+  - key: gemini-3.5-flash
+    display_name: "Google Gemini 3.5 Flash"
+    litellm_model: "openrouter/google/gemini-3.5-flash"
+    # Unlike the gpt-5.6-terra and claude-sonnet-5 endpoints, google-ai-studio
+    # lists temperature among its supported parameters, so temperature 0 is
+    # actually honored here rather than filtered out or silently dropped (D22).
     params: {temperature: 0}
-    # DeepSeek V4 offers only high/xhigh, so "medium" maps up to high.
-    reasoning_effort: high
+    # reasoning_effort is supported directly, so "medium" needs no mapping.
+    reasoning_effort: medium
     provider_routing:
-      # DeepSeek's own endpoint IS listed by the endpoints API but is not
-      # routable: pinning `deepseek` 404s even with fallbacks allowed, while the
-      # slug routes fine unpinned. Fireworks is the substitute -- full 1M
-      # context, tool calling confirmed in pre-flight, and not declared as a
-      # quantized endpoint (unlike the fp8/fp4 hosts). See DECISIONS D22.
-      order: [fireworks]
+      order: [google-ai-studio]
       allow_fallbacks: false
     supports_parallel_tool_calls: true
     api_key_env: OPENROUTER_API_KEY

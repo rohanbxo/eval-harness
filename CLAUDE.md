@@ -66,6 +66,29 @@ web/                        Next.js dashboard
 Environment variables only. `.env` is gitignored; document every key in `.env.example`.
 Never log an API key, and never put one in a fixture or a test.
 
+## Reporting results
+
+**Every summary claim in a report must be computed from the results data, not written
+freehand. Include the query or computation that backs it.**
+
+"No model failed the same scenario twice" is a claim about counts; it must come from
+counting, and the count must be shown. A run of this harness exists to replace impressions
+with measurements, so a report that reintroduces impressions defeats it. This is not a
+style preference — it was added after a report asserted exactly that sentence while the
+table printed directly above it showed a model failing one scenario twice.
+
+Practically:
+
+- Derive per-model and per-scenario numbers with a script over `results/*.json` or the
+  database, and paste the script or query alongside the finding.
+- Prefer a printed table to a sentence. Where a sentence generalises over a table, it must
+  be produced by the same computation, not read off by eye.
+- Say which source the numbers came from. A `--no-db` run writes JSON and stores nothing
+  in Postgres; claiming to have queried the database in that case is false.
+- If a claim cannot be computed, do not make it. "Three of five scenarios never executed"
+  is checkable; "the model seemed cautious" is not, unless it is quoting a specific
+  message, in which case quote it.
+
 ## Decisions
 
 Ambiguities resolved during the build are recorded in `docs/DECISIONS.md` with the

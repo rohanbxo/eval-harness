@@ -29,6 +29,10 @@ interface ModelRow {
   /** Mean per axis across this model's cells; null where nothing measured it. */
   axisMeans: AxisScores;
   configChanged: boolean;
+  /** 95% Wilson bounds for pass@1, straight from the API. */
+  passAt1Low: number | null;
+  passAt1High: number | null;
+  notSignificantVsLeader: boolean;
 }
 
 function mean(values: number[]): number | null {
@@ -104,6 +108,10 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
 
     return modelKeys.map((key) => {
       const label = models.find((model) => model.key === key)?.display_name ?? key;
+      // The API computes the Wilson interval and the significance flag; they are
+      // read here rather than recomputed, so the UI cannot disagree with the
+      // numbers the run actually produced.
+      const source = (data.rows ?? []).find((r) => r.model_key === key);
       const modelCells = cells.filter((cell) => cell.model_key === key);
       const byScenario = new Map<string, LeaderboardCell>();
       for (const cell of modelCells) {
@@ -129,6 +137,9 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
         key,
         label,
         cells: byScenario,
+        passAt1Low: source?.pass_at_1_low ?? null,
+        passAt1High: source?.pass_at_1_high ?? null,
+        notSignificantVsLeader: source?.not_significant_vs_leader ?? false,
         meanPassAt1: mean(passValues),
         meanPassHatK: mean(hatValues),
         // Cost is only meaningful if every cell reported one; a partial sum
@@ -141,7 +152,7 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
         ),
       };
     });
-  }, [cells, models, referenceHash]);
+  }, [cells, models, referenceHash, data.rows]);
 
   const sorted = React.useMemo(() => {
     const copy = [...rows];
@@ -267,7 +278,25 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
                     })}
                     <td className="p-0">
                       <div className="flex h-16 flex-col items-center justify-center rounded-md border bg-card">
-                        <span className="text-sm font-semibold tabular-nums">{formatPercent(row.meanPassAt1, 0)}</span>
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatPercent(row.meanPassAt1, 0)}
+                          {row.notSignificantVsLeader && row.key !== rows[0]?.key ? (
+                            <span
+                              className="ml-1 text-[10px] font-normal text-warn"
+                              title="This row's 95% interval overlaps the leader's, so the gap is not established at that level."
+                            >
+                              ns
+                            </span>
+                          ) : null}
+                        </span>
+                        {row.passAt1Low !== null && row.passAt1High !== null ? (
+                          <span
+                            className="text-[10px] tabular-nums text-muted-foreground"
+                            title="95% Wilson confidence interval for pass@1"
+                          >
+                            95% CI {formatPercent(row.passAt1Low, 0)}–{formatPercent(row.passAt1High, 0)}
+                          </span>
+                        ) : null}
                         <span className="text-[11px] text-muted-foreground">
                           {formatCost(row.totalCost)} · {formatMs(row.meanLatency)}
                         </span>

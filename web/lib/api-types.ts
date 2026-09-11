@@ -686,6 +686,28 @@ export interface components {
              */
             pass_at_1: number;
             /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            /**
+             * Graded
+             * @default 0
+             */
+            graded: number;
+            /**
+             * Pass At 1 Low
+             * @description 95% Wilson lower bound.
+             * @default 0
+             */
+            pass_at_1_low: number;
+            /**
+             * Pass At 1 High
+             * @description 95% Wilson upper bound.
+             * @default 1
+             */
+            pass_at_1_high: number;
+            /**
              * Pass Hat K
              * @default 0
              */
@@ -734,6 +756,34 @@ export interface components {
              * @default 0
              */
             pass_at_1: number;
+            /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            /**
+             * Graded
+             * @default 0
+             */
+            graded: number;
+            /**
+             * Pass At 1 Low
+             * @description 95% Wilson lower bound.
+             * @default 0
+             */
+            pass_at_1_low: number;
+            /**
+             * Pass At 1 High
+             * @description 95% Wilson upper bound.
+             * @default 1
+             */
+            pass_at_1_high: number;
+            /**
+             * Not Significant Vs Leader
+             * @description This row's 95% interval overlaps the top row's, so the gap between them is not established at that level. True for the leader itself.
+             * @default false
+             */
+            not_significant_vs_leader: boolean;
             /**
              * Pass Hat K
              * @default 0
