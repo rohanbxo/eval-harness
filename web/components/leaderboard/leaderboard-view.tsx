@@ -280,12 +280,18 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
                       <div className="flex h-16 flex-col items-center justify-center rounded-md border bg-card">
                         <span className="text-sm font-semibold tabular-nums">
                           {formatPercent(row.meanPassAt1, 0)}
-                          {row.notSignificantVsLeader && row.key !== rows[0]?.key ? (
+                          {row.notSignificantVsLeader && row.key !== sorted[0]?.key ? (
                             <span
-                              className="ml-1 text-[10px] font-normal text-warn"
-                              title="This row's 95% interval overlaps the leader's, so the gap is not established at that level."
+                              className="ml-1 cursor-help text-[10px] font-normal text-warn"
+                              title={
+                                "Not separable from the leader: this model's 95% Wilson confidence " +
+                                "interval for pass@1 overlaps the top model's, so the two cannot be " +
+                                "told apart at this sample size. Run a larger k to narrow the intervals. " +
+                                "Overlap does not mean the models are equal, only that this run does " +
+                                "not establish a difference."
+                              }
                             >
-                              ns
+                              not separable
                             </span>
                           ) : null}
                         </span>

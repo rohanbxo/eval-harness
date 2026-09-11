@@ -355,11 +355,22 @@ what `meeting-scheduler`'s `parallel` assertion measures.
 **2. `temperature` is not a supported parameter on reasoning endpoints.** Both
 `gpt-5.6-terra` and `claude-sonnet-5` rejected `temperature: 0` the same way — and did so
 with reasoning switched off too, so it is the endpoint, not a conflict between the two.
-Those entries now send no temperature at all.
 
-This means **"temperature 0 everywhere" is not achievable** for this model set, and
-claiming it would misdescribe the run. Two of the four are not temperature-controllable;
-their run-to-run variance is real and is exactly what k=3 and pass^k exist to measure.
+**Resolution: no model sets temperature. Every one runs at its vendor default.**
+
+The first instinct was to drop temperature only where it was rejected and keep `0` where
+it worked — Gemini's endpoint does accept it. That would have been worse than either
+extreme. Temperature 0 suppresses run-to-run variance, and pass^k is precisely a measure
+of run-to-run variance: pinning half the field to 0 while the other half runs free would
+hand the pinned half an advantage on the headline consistency metric, and the leaderboard
+would report a sampling decision as a capability difference. A uniform comparison at
+vendor defaults is the honest one, even though "everything at temperature 0" sounds more
+controlled.
+
+What this costs is worth stating: none of these runs are reproducible call-for-call. That
+is the real situation for this model set — two of the four cannot be pinned at all — and
+k with pass^k exists to quantify it rather than hide it.
+
 Without `require_parameters` the request would have "succeeded" with the temperature
 silently discarded, which is the worse outcome: a run that believes it was deterministic
 and was not.
@@ -447,3 +458,26 @@ otherwise lands a few ulps short and renders 100% as 99.99%.
 Overlap is a conservative test: non-overlapping intervals do imply a difference, but
 overlapping ones do not prove its absence. The flag therefore says "not significant",
 never "the same".
+
+## D25 — Gemini is pinned to the standard tier, confirmed by arithmetic
+
+`google/gemini-3.5-flash` is served by three Google AI Studio tiers — `flex`, standard and
+`priority` — that differ in latency and in price. OpenRouter reports only the provider
+*name* on a response (`"Google AI Studio"` for all three), and the generation-details
+endpoint 404s, so the served tier cannot be read directly.
+
+It can be derived. Per-token pricing differs threefold across the tiers, and `usage.cost`
+is returned per call:
+
+| pin | prompt/tok | completion/tok | observed cost | arithmetic |
+|---|---|---|---|---|
+| `google-ai-studio/flex` | $0.00000075 | $0.0000045 | $0.0003915 | 54×p + 78×c ✓ |
+| `google-ai-studio` | $0.0000015 | $0.000009 | **$0.000819** | 54×p + 82×c ✓ |
+| `google-ai-studio/priority` | $0.0000027 | $0.0000162 | $0.001053 | 54×p + 56×c ✓ |
+
+The bare `google-ai-studio` pin costs exactly standard-tier rates, so it resolves to the
+standard tier rather than the cheapest or the fastest. Confirmed rather than assumed,
+because tier affects the latency column that this harness reports.
+
+The general point: a pin is only as good as the evidence that it held. Where the gateway
+does not report what served a call, derive it from something it does report.
