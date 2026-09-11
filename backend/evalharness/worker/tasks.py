@@ -452,8 +452,21 @@ async def _run_and_persist(
         if len(buffer) >= EVENT_FLUSH_BATCH:
             await flush()
 
+    # Per-model RPM shaping (D27). Each model has its own window, so models run
+    # in parallel and only the rate per model is bounded. The hook is handed to
+    # the provider, which takes a slot per HTTP request including retries (D32).
+    async def rate_limit() -> tuple[float, bool]:
+        from evalharness.worker.ratelimit import acquire_detailed
+
+        if is_fake_model(entry):
+            return (0.0, False)  # scripted transcripts make no request to shape
+        outcome = await acquire_detailed(entry.key, entry.rpm)
+        return (outcome.waited_s, outcome.bypassed)
+
     try:
-        result = await execute_one_attempt(loaded, provider, repetition, watcher, on_event, params)
+        result = await execute_one_attempt(
+            loaded, provider, repetition, watcher, on_event, params, rate_limit
+        )
     finally:
         await flush()
 
