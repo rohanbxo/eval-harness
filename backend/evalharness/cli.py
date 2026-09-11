@@ -248,20 +248,68 @@ def _provider_for(entry: ModelEntry, loaded: LoadedScenario) -> Provider:
     return LiteLLMProvider(entry)
 
 
+#: Default spend ceiling for one `evalharness run` (SPEC gap -- DECISIONS D21).
+DEFAULT_MAX_COST_USD = 2.00
+
+
+def _budget_stop(spent: float, limit: float | None) -> bool:
+    return limit is not None and spent > limit
+
+
 async def _run_attempts(
-    entry: ModelEntry, scenarios: list[LoadedScenario], k: int
+    entry: ModelEntry,
+    scenarios: list[LoadedScenario],
+    k: int,
+    *,
+    max_cost_usd: float | None = None,
 ) -> list[AttemptResult]:
+    """Run every scenario x repetition, stopping cleanly if the budget runs out.
+
+    A budget stop is not a model failure: the remaining attempts are recorded as
+    `errored`, so they are excluded from pass@1 and drag coverage down instead of
+    masquerading as evidence (D19).
+    """
     results: list[AttemptResult] = []
+    spent = 0.0
+    stopped_at: str | None = None
+
     for loaded in scenarios:
         for repetition in range(k):
+            if stopped_at is not None:
+                results.append(
+                    AttemptResult(
+                        scenario_id=loaded.id,
+                        repetition=repetition,
+                        errored=True,
+                        error=stopped_at,
+                    )
+                )
+                continue
+
             provider = _provider_for(entry, loaded)
             result = await run_attempt(
                 AttemptContext(loaded=loaded, provider=provider, repetition=repetition)
             )
             results.append(result)
-            mark = "[green]pass[/green]" if result.passed else "[red]fail[/red]"
+            if result.cost_usd is not None:
+                spent += result.cost_usd
+
+            if result.errored:
+                mark = "[yellow]errored[/yellow]"
+            elif result.passed:
+                mark = "[green]pass[/green]"
+            else:
+                mark = "[red]fail[/red]"
             note = f" [red]({result.error})[/red]" if result.error else ""
             console.print(f"  {loaded.id} #{repetition}: {mark}{note}")
+
+            if _budget_stop(spent, max_cost_usd):
+                stopped_at = (
+                    f"budget stop: spent ${spent:.4f} of the "
+                    f"${max_cost_usd:.2f} --max-cost-usd limit"
+                )
+                console.print(f"[yellow]{stopped_at}[/yellow]; remaining attempts not run")
+
     return results
 
 
@@ -276,6 +324,13 @@ def _results_document(
     return {
         "model_key": entry.key,
         "litellm_model": entry.litellm_model,
+        # Exactly what was sent, so a result file can be read back years later
+        # without having to guess which registry version produced it.
+        "params": entry.effective_params(),
+        "reasoning_effort": entry.reasoning_effort,
+        "provider_routing": (
+            entry.provider_routing.model_dump(mode="json") if entry.provider_routing else None
+        ),
         "k": k,
         "scenarios": {s.id: s.config_hash for s in scenarios},
         "summary": summarize_run(results, k).to_dict(),
@@ -297,6 +352,14 @@ def run(
         bool, typer.Option("--no-db", help="Run synchronously, without Postgres or Celery.")
     ] = False,
     out: Annotated[Path | None, typer.Option("--out", help="Write the results JSON here.")] = None,
+    max_cost_usd: Annotated[
+        float,
+        typer.Option(
+            "--max-cost-usd",
+            min=0.0,
+            help="Abort once cumulative cost exceeds this. 0 disables the guard.",
+        ),
+    ] = DEFAULT_MAX_COST_USD,
     include_events: Annotated[
         bool, typer.Option("--include-events", help="Include the full event log in --out.")
     ] = False,
@@ -345,7 +408,11 @@ def run(
 
     console.print(f"running [bold]{entry.key}[/bold] over {len(selected)} scenario(s), k={k}")
     try:
-        results = asyncio.run(_run_attempts(entry, selected, k))
+        results = asyncio.run(
+            _run_attempts(
+                entry, selected, k, max_cost_usd=max_cost_usd if max_cost_usd > 0 else None
+            )
+        )
     except ScenarioValidationError as exc:
         raise _fail(str(exc), code=1) from exc
 

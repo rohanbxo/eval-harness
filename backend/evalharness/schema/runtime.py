@@ -52,6 +52,10 @@ class AssistantMessage(BaseModel):
     content: str | None = None
     tool_calls: list[ToolCall] = Field(default_factory=list)
     finish_reason: str | None = None
+    provider: str | None = Field(
+        default=None,
+        description="Upstream host that served this response, when the gateway reports it.",
+    )
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float | None = None

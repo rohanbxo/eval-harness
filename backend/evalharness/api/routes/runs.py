@@ -73,8 +73,9 @@ async def create_run(body: schemas.RunCreate, session: SessionDep) -> schemas.Ru
         config_hashes[scenario_id] = loaded.config_hash
         snapshots[scenario_id] = loaded.snapshot()
 
-    params: dict[str, Any] = dict(entry.params or {})
-    params.update(body.params_override or {})
+    # effective_params folds in reasoning effort and provider pinning, so the
+    # stored record matches the request the provider actually receives (D20).
+    params: dict[str, Any] = entry.effective_params(body.params_override)
     if body.transcript is not None:
         # FakeModel only; the worker pops this before params reach a provider.
         params["transcript"] = body.transcript

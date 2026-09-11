@@ -51,22 +51,49 @@ evalharness list-models
 
 ## Adding a model
 
-Add an entry to `config/models.yaml` — that is the whole job.
+Model access goes through **OpenRouter**: one key, one bill, every provider. Add an entry
+to `config/models.yaml` — that is the whole job.
 
 ```yaml
 models:
-  - key: my-model                        # stable key used in the UI and the CLI
+  - key: my-model                                  # stable key used in the UI and the CLI
     display_name: "Provider, Model X"
-    litellm_model: "openai/some-model-id"   # any LiteLLM model string
+    litellm_model: "openrouter/vendor/model-slug"  # LiteLLM's openrouter/ prefix
     params: {temperature: 0}
+    reasoning_effort: medium                       # a value THIS model supports
+    provider_routing:                              # pin the upstream host
+      order: [vendor]
+      allow_fallbacks: false
     supports_parallel_tool_calls: true
-    api_key_env: OPENAI_API_KEY
-    pricing_override: null               # {input_per_mtok, output_per_mtok} if LiteLLM lacks pricing
+    api_key_env: OPENROUTER_API_KEY
+    pricing_override: null                         # {input_per_mtok, output_per_mtok}
 ```
 
-The API key comes from the environment and nothing else. `GET /api/models` reports
-whether each key is present; the run launcher disables models whose key is missing.
-Cost is reported as `null` when pricing is unknown — the harness never guesses a price.
+### Why pin a provider
+
+OpenRouter serves one model slug from many upstream hosts, and they are **not
+interchangeable** — they differ in quantization, context window and tool-calling fidelity.
+Left alone it routes on price and availability, so two runs of "the same model" can land
+on different hardware and the comparison quietly stops being fair.
+
+`provider_routing` pins the order and turns fallbacks off, so a host that cannot serve the
+request produces an error rather than a silent substitution. Every `model_response` event
+records the host that **actually** served it, so the trace can prove the pin held — the
+pin states intent, the trace is the evidence.
+
+`reasoning_effort` is per model because the supported values differ; ask for one the model
+actually accepts rather than a value that gets silently rounded.
+
+### Keys and cost
+
+The API key comes from the environment and nothing else. `GET /api/models` reports whether
+each key is present; the run launcher disables models whose key is missing. Cost is
+reported as `null` when pricing is unknown — the harness never guesses a price.
+
+`evalharness run` takes `--max-cost-usd` (default **$2.00**). When cumulative cost passes
+the ceiling the run stops and the attempts that never ran are recorded as `errored`, so
+they lower coverage rather than counting as model failures. The check happens after each
+attempt, so the ceiling can be overshot by at most one attempt.
 
 Models without native tool calling are marked unsupported and skipped.
 

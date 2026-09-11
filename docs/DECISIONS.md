@@ -287,3 +287,55 @@ nothing in the output said so, and the leaderboard would have ranked two models 
 now honored), but that only reduces how often this happens. Any long run against a real
 provider will lose an attempt eventually, and the honest response is to say which numbers
 are missing rather than to quietly average over a hole.
+
+## D20 — Model access goes through OpenRouter, with the upstream host pinned
+
+**Spec:** §7 says model access is "any LiteLLM model string" and that keys come from the
+environment. It assumes a model string identifies what will answer.
+
+**That assumption breaks on a gateway.** OpenRouter fronts many upstream hosts behind one
+slug, and they are not interchangeable: they differ in quantization (an fp8 host and a
+bf16 host of the same weights are different models for our purposes), in context window,
+and in how faithfully they implement tool calling. Left to its own routing, OpenRouter
+picks on price and availability, so two runs of "the same model" can be served by
+different hardware — and a re-route looks exactly like a model regression in the
+leaderboard.
+
+**Decision.**
+
+1. `.env.example` carries `OPENROUTER_API_KEY` plus an optional `GROQ_API_KEY` for
+   calling Groq directly. One key, one bill, one place to rotate.
+2. `ModelEntry.provider_routing` pins the upstream: an ordered `order` list with
+   `allow_fallbacks: false` and `require_parameters: true`. A pinned host that cannot
+   serve the request is an error, never a silent substitution.
+3. The routing block travels in `extra_body`, because OpenRouter reads `provider` from the
+   request body rather than as an OpenAI-style parameter.
+4. **Every `model_response` event records the host that actually served it.** The pin
+   states intent; only the trace can prove it held. Where the gateway reports nothing the
+   field is `null` rather than a guess.
+5. `ModelEntry.effective_params()` builds the request params — base params, reasoning
+   effort, routing — in one place, and that same dict is stored on the run. The record and
+   the request cannot drift.
+
+**Reasoning effort** is stored per model rather than globally, because the supported
+values differ: asking for "medium" uniformly would be silently rounded by some providers
+and rejected by others. Each entry names a value that model actually supports, and the run
+record shows what was sent.
+
+## D21 — `evalharness run` takes a spend ceiling, default $2.00
+
+**Spec gap.** §6.3 requires cost tracking and §9.3 defines the CLI, but nothing bounds
+what a run may spend. `--scenarios all --k 3` against four models is 60 attempts of
+unbounded length; a scenario that makes a model loop, or a pricing surprise, spends real
+money with no brake.
+
+**Decision.** `--max-cost-usd` (default `2.00`, `0` disables) stops the run as soon as
+cumulative cost passes the limit. Attempts that never ran are recorded as **`errored`**,
+not failed — so they are excluded from pass@1 and pull coverage down instead of
+masquerading as model failures (D19). The stop is reported in the results file and on the
+console.
+
+The check is *after* each attempt, not before, because an attempt's cost is not knowable
+until it finishes. So the ceiling can be overshot by at most one attempt — stated here
+rather than implied, since a hard guarantee would require refusing to start any attempt
+that might exceed it, which would make the last portion of every budget unusable.

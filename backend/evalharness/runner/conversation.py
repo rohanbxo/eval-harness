@@ -323,6 +323,9 @@ class _Attempt:
                 "step": turn.steps - 1,
                 "content": message.content,
                 "finish_reason": message.finish_reason,
+                # Which host served this call. The trace is the only place that
+                # can prove a pinned run was not silently re-routed (D20).
+                "provider": message.provider,
                 "tool_calls": [
                     {"id": c.id, "name": c.name, "arguments": c.arguments}
                     for c in message.tool_calls

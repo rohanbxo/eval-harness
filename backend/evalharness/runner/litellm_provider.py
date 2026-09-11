@@ -137,13 +137,21 @@ class LiteLLMProvider:
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], **params: Any
     ) -> dict[str, Any]:
         """The kwargs handed to ``acompletion``, registry params included."""
+        merged = self.entry.effective_params(params)
+        # OpenRouter reads `provider` from the request body, not as a top-level
+        # OpenAI param, so it travels in extra_body where LiteLLM passes it
+        # through untouched.
+        routing = merged.pop("provider", None)
         request: dict[str, Any] = {
             "model": self.entry.litellm_model,
             "messages": messages,
             "drop_params": True,
-            **self.entry.params,
-            **params,
+            **merged,
         }
+        if routing is not None:
+            extra_body = dict(request.get("extra_body") or {})
+            extra_body["provider"] = routing
+            request["extra_body"] = extra_body
         if tools:
             request["tools"] = tools
             request.setdefault("tool_choice", "auto")
@@ -210,6 +218,7 @@ class LiteLLMProvider:
         output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
 
         return AssistantMessage(
+            provider=served_provider(response),
             content=content if isinstance(content, str) else None,
             tool_calls=tool_calls,
             finish_reason=getattr(choice, "finish_reason", None),
@@ -241,6 +250,34 @@ class LiteLLMProvider:
         if isinstance(cost, bool) or not isinstance(cost, int | float):
             return None
         return float(cost)
+
+
+def served_provider(response: Any) -> str | None:
+    """Which upstream host actually served this response, when it says.
+
+    OpenRouter returns the chosen host as a top-level ``provider`` field.
+    Recording it is the point of pinning: without it a run cannot prove which
+    hardware produced its numbers, and a silent substitution looks like a model
+    regression (DECISIONS D20).
+    """
+    direct = getattr(response, "provider", None)
+    if isinstance(direct, str) and direct:
+        return direct
+
+    hidden = getattr(response, "_hidden_params", None)
+    if isinstance(hidden, dict):
+        for key in ("provider", "custom_llm_provider", "llm_provider"):
+            value = hidden.get(key)
+            if isinstance(value, str) and value:
+                return value
+
+    # Some LiteLLM versions keep unmodelled fields on the pydantic extras.
+    extras = getattr(response, "model_extra", None)
+    if isinstance(extras, dict):
+        value = extras.get("provider")
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 def parse_tool_call(raw: Any, index: int) -> ToolCall:
