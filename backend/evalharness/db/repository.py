@@ -384,6 +384,25 @@ async def model_call_latencies(session: AsyncSession, run_id: str) -> list[tuple
     return [(str(scenario), int(value)) for scenario, value in (await session.execute(statement))]
 
 
+async def model_call_waits(session: AsyncSession, run_id: str) -> list[int]:
+    """Milliseconds each model call spent queued or backing off (D28).
+
+    Reported separately from latency so that p50/p95 describe how fast the model
+    answered, not how long the harness throttled itself in front of it.
+    """
+    statement = (
+        select(models.Event.payload)
+        .join(models.Attempt, models.Attempt.id == models.Event.attempt_id)
+        .where(models.Attempt.run_id == run_id, models.Event.type == "model_response")
+    )
+    waits: list[int] = []
+    for (payload,) in (await session.execute(statement)).all():
+        value = (payload or {}).get("wait_ms")
+        if isinstance(value, int | float):
+            waits.append(int(value))
+    return waits
+
+
 async def steps_per_turn(session: AsyncSession, run_id: str) -> list[tuple[str, int]]:
     """``(scenario_id, model calls)`` per turn, for the mean-steps-per-turn stat."""
     statement = (

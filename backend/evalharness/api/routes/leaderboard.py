@@ -95,7 +95,13 @@ async def get_leaderboard(session: SessionDep) -> LeaderboardResponse:
             if key in latest:
                 continue
             stats = _scenario_stats(summary, scenario_id)
-            if stats is None or stats.completed == 0:
+            if stats is None:
+                continue
+            # A scenario whose every attempt errored is NOT the same as one that
+            # was never run: the first is a failure to collect data, the second
+            # is an absence of it. Skipping the former made them identical in the
+            # UI, both showing "no run" (DECISIONS D26).
+            if stats.completed == 0 and stats.attempts == 0:
                 continue
             config_hash = stats.config_hash or hashes.get(scenario_id, "")
             current = current_hashes.get(scenario_id)

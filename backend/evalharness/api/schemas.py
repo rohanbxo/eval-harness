@@ -175,8 +175,16 @@ class RunSummary(ApiModel):
     cost_usd: float | None = Field(
         default=None, description="Null when any attempt's cost is unknown; never guessed."
     )
-    latency_p50_ms: float | None = None
+    latency_p50_ms: float | None = Field(
+        default=None,
+        description="Successful model-call duration only; excludes throttle and backoff.",
+    )
     latency_p95_ms: float | None = None
+    queue_wait_total_ms: int = Field(
+        default=0,
+        description="Total time spent rate-limited or backing off across the run.",
+    )
+    queue_wait_p95_ms: float | None = None
     model_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0

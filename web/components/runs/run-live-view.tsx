@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Loader2, Radio, RefreshCw, WifiOff } from "lucide-react";
 
-import { AxisScoreList, ConfigHashBadge, PassFailBadge, Stat, StatusBadge } from "@/components/domain";
+import {
+  AttemptVerdictBadge,
+  AxisScoreList,
+  ConfigHashBadge,
+  Stat,
+  StatusBadge,
+} from "@/components/domain";
 import { EmptyState, InlineError } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -408,7 +414,7 @@ function SummaryPanel({ run }: { run: RunDetail }) {
                 <span className="font-mono">
                   {attempt.scenario_id} #{attempt.repetition + 1}
                 </span>
-                <PassFailBadge passed={attempt.passed ?? null} />
+                <AttemptVerdictBadge status={attempt.status} passed={attempt.passed} />
               </span>
             </Link>
           ))}

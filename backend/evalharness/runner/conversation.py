@@ -68,6 +68,8 @@ class AttemptContext:
     """Only used when ``EVALHARNESS_ENABLE_JUDGE`` is set (SPEC 4.3)."""
     params: dict[str, Any] = field(default_factory=dict)
     """Extra provider params (a run's ``params_override``)."""
+    rate_limit: Callable[[], Awaitable[float]] | None = None
+    """Awaited before every model call; returns the seconds it queued (D27)."""
 
 
 def _jsonify(value: Any) -> Any:
@@ -290,6 +292,13 @@ class _Attempt:
             },
             turn_index=turn.index,
         )
+        # Shape the request rate before the call, and outside the turn budget:
+        # queueing for a token is the harness waiting its turn, not the model
+        # being slow, so it must not consume turn_timeout_s (D27, D28).
+        queued_s = 0.0
+        if self.ctx.rate_limit is not None:
+            queued_s = await self.ctx.rate_limit()
+
         try:
             message = await asyncio.wait_for(
                 self.ctx.provider.complete(
@@ -313,6 +322,7 @@ class _Attempt:
             )
             return None
 
+        message.wait_ms += int(queued_s * 1000)
         turn.steps += 1
         self.input_tokens += message.input_tokens
         self.output_tokens += message.output_tokens
@@ -326,6 +336,9 @@ class _Attempt:
                 # Which host served this call. The trace is the only place that
                 # can prove a pinned run was not silently re-routed (D20).
                 "provider": message.provider,
+                # Kept apart from latency_ms on purpose: percentiles over
+                # latency describe the model, not the throttle in front of it.
+                "wait_ms": message.wait_ms,
                 "tool_calls": [
                     {"id": c.id, "name": c.name, "arguments": c.arguments}
                     for c in message.tool_calls

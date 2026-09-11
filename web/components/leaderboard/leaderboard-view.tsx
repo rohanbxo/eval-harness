@@ -353,6 +353,20 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
 }
 
 function HeatCell({ cell, stale }: { cell: LeaderboardCell | undefined; stale: boolean }) {
+  // A scenario every one of whose attempts errored is not the same as one that
+  // was never run. Showing both as "no run" hid a data-collection failure behind
+  // an absence of data (DECISIONS D26).
+  if (cell && (cell.graded ?? 0) === 0 && (cell.attempts ?? 0) > 0) {
+    return (
+      <div
+        className="flex h-16 flex-col items-center justify-center rounded-md border border-dashed border-warn bg-warn/10 text-center text-xs text-warn"
+        title={`All ${cell.attempts} attempt(s) errored: no verdict was produced, so there is nothing to score here.`}
+      >
+        <span className="font-medium">no data</span>
+        <span className="text-[10px]">{cell.attempts} errored</span>
+      </div>
+    );
+  }
   if (!cell) {
     return (
       <div className="flex h-16 items-center justify-center rounded-md border border-dashed text-xs text-muted-foreground">

@@ -1,0 +1,6 @@
+{
+ "gpt-5.6-terra": "096b1ab1984a48aabb9cd63588161913",
+ "claude-sonnet-5": "e77d32c7425f4e39bd33502754102bed",
+ "gemini-3.5-flash": "af8cb2c168ed462ca820ff18a9b78509",
+ "gpt-oss-120b-groq": "6bf30895babf45fcaf4f0afd7a2e9293"
+}

@@ -75,6 +75,38 @@ export function PassFailBadge({ passed, label }: { passed: boolean | null | unde
   );
 }
 
+/**
+ * An attempt's verdict, which only exists if the attempt was graded.
+ *
+ * An errored or cancelled attempt carries `passed = false` in the database
+ * because the column is not nullable, but it never produced a verdict at all.
+ * Rendering that as "fail" blames the model for a provider outage, which is the
+ * exact confusion the errored status exists to prevent (DECISIONS D19).
+ */
+export function AttemptVerdictBadge({
+  status,
+  passed,
+}: {
+  status: AttemptStatus;
+  passed: boolean | null | undefined;
+}) {
+  if (status === "errored") {
+    return (
+      <Badge variant="warn" title="No verdict: the attempt never completed.">
+        <AlertTriangle className="h-3 w-3" />
+        errored
+      </Badge>
+    );
+  }
+  if (status === "cancelled") {
+    return <Badge variant="secondary">cancelled</Badge>;
+  }
+  if (status === "queued" || status === "running") {
+    return <Badge variant="muted">{status}</Badge>;
+  }
+  return <PassFailBadge passed={passed ?? null} />;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Axes and severities                                                         */
 /* -------------------------------------------------------------------------- */

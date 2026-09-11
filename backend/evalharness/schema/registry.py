@@ -67,6 +67,15 @@ class ModelEntry(BaseModel):
     display_name: str
     litellm_model: str
     params: dict[str, Any] = Field(default_factory=dict)
+    rpm: int = Field(
+        default=15,
+        ge=0,
+        description=(
+            "Requests per minute this model may make. Providers cap per model, so "
+            "each is throttled independently and models still run in parallel. "
+            "0 disables throttling (DECISIONS D27)."
+        ),
+    )
     supports_parallel_tool_calls: bool = True
     supports_tool_calling: bool = Field(
         default=True, description="False marks the model unsupported; runs are skipped."

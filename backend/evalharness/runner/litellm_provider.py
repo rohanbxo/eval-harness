@@ -169,8 +169,11 @@ class LiteLLMProvider:
         request = self.build_request(messages, tools, **params)
         completion = self._completion_fn()
 
-        started = time.monotonic()
+        waited_s = 0.0
         for attempt in range(1, self.max_attempts + 1):
+            # Timed per attempt: a call that succeeds after two backoffs took as
+            # long as the successful call, not as long as the whole ordeal.
+            started = time.monotonic()
             try:
                 response = await completion(**request)
             except Exception as exc:
@@ -195,15 +198,16 @@ class LiteLLMProvider:
                         status_code=_status_code(exc),
                     )
                 await self._sleep(delay)
+                waited_s += delay
                 continue
             latency_ms = int((time.monotonic() - started) * 1000)
-            return self._normalize(response, latency_ms)
+            return self._normalize(response, latency_ms, wait_ms=int(waited_s * 1000))
 
         raise ProviderError(f"{self.entry.key}: model call failed")  # pragma: no cover
 
     # -- response --------------------------------------------------------
 
-    def _normalize(self, response: Any, latency_ms: int) -> AssistantMessage:
+    def _normalize(self, response: Any, latency_ms: int, wait_ms: int = 0) -> AssistantMessage:
         choices = getattr(response, "choices", None) or []
         if not choices:
             raise ProviderError(f"{self.entry.key}: model returned no choices")
@@ -230,6 +234,7 @@ class LiteLLMProvider:
             output_tokens=output_tokens,
             cost_usd=self.cost_for(response, input_tokens, output_tokens),
             latency_ms=latency_ms,
+            wait_ms=wait_ms,
         )
 
     def cost_for(self, response: Any, input_tokens: int, output_tokens: int) -> float | None:

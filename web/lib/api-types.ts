@@ -1361,10 +1361,21 @@ export interface components {
              * @description Null when any attempt's cost is unknown; never guessed.
              */
             cost_usd?: number | null;
-            /** Latency P50 Ms */
+            /**
+             * Latency P50 Ms
+             * @description Successful model-call duration only; excludes throttle and backoff.
+             */
             latency_p50_ms?: number | null;
             /** Latency P95 Ms */
             latency_p95_ms?: number | null;
+            /**
+             * Queue Wait Total Ms
+             * @description Total time spent rate-limited or backing off across the run.
+             * @default 0
+             */
+            queue_wait_total_ms: number;
+            /** Queue Wait P95 Ms */
+            queue_wait_p95_ms?: number | null;
             /**
              * Model Calls
              * @default 0

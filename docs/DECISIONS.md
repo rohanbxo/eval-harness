@@ -481,3 +481,77 @@ because tier affects the latency column that this harness reports.
 
 The general point: a pin is only as good as the evidence that it held. Where the gateway
 does not report what served a call, derive it from something it does report.
+
+## D26 — "no data" is not "no run"
+
+The leaderboard skipped any cell whose scenario had zero graded attempts, so a
+scenario where *every* attempt errored rendered identically to one that was never
+attempted: both said "no run". Those are opposite situations — the first is a failure to
+collect data, the second is an absence of it — and the first is the one that needs
+attention.
+
+Cells with `attempts > 0 and graded == 0` now render as **"no data"** with the errored
+count and a tooltip. Only a genuinely absent cell says "no run".
+
+Found by looking at the dashboard rather than the API: the JSON was correct, and the
+omission only became visible once rendered.
+
+## D27 — Per-model RPM limiting, because the cap is per model
+
+**The problem.** A k=5 run lost 48 of 100 attempts to
+`new-account-rpm: 20 requests per minute for this model`. The obvious fix — drop provider
+concurrency to 1 — is the wrong one. The cap is *per model*, so serialising the whole run
+would make four models take four times as long while each still ran at whatever rate a
+single attempt happens to produce. A single attempt makes ~10 calls back to back and can
+breach 20 rpm on its own, so concurrency was never the lever.
+
+**Decision.** `ModelEntry.rpm` (default 15) and a token bucket per model key, in Redis so
+every worker shares one allowance. Each model call takes a token first. Models run fully
+in parallel; only the rate per model is bounded.
+
+Continuous refill rather than a fixed window: a window lets a run spend its whole minute's
+allowance in one burst and trip the provider anyway, which is the failure this exists to
+prevent.
+
+**Two deliberate softnesses.** A limiter that cannot be reached does not block the call —
+the request goes out unshaped and the provider's `Retry-After` backoff (D14) remains the
+backstop. And `acquire` gives up after 120s rather than waiting forever. In both cases
+running slightly too fast beats not running.
+
+The FakeModel entries set `rpm: 0`: scripted transcripts make no request, so there is no
+rate to shape. Without that the test suite genuinely slept waiting for tokens it never
+needed — it went from 15s to 209s before this was noticed.
+
+## D28 — Latency measures the model, not the queue in front of it
+
+Latency was timed from the start of `complete()`, which included every retry backoff. A
+call that succeeded after two 429s reported the whole ordeal as its latency, so the
+previous run's p95 of ~20s described rate-limit waiting, not model speed. Adding an RPM
+limiter would have made that worse, since queueing for a token would also have counted.
+
+Now `latency_ms` covers **only the successful provider call** — the timer restarts on each
+retry — and queue time plus backoff is reported separately as `wait_ms` on the event and
+`queue_wait_total_ms` on the run summary. The leaderboard's p50/p95 read `latency_ms`, so
+they exclude waits by construction.
+
+Rate-limiter waits are also taken *outside* the turn budget: queueing for a token is the
+harness waiting its turn, not the model being slow, and charging it to `turn_timeout_s`
+would make the throttle cause spurious timeouts.
+
+## D29 — `git filter-repo` discards uncommitted work
+
+Removing `results/` from history with `git filter-repo --force` also reset the working
+tree, silently reverting an uncommitted edit to `config/models.yaml` that had removed
+`temperature` from every model.
+
+The k=5 run that followed therefore ran a configuration nobody chose: Gemini and
+gpt-oss-120b at `temperature: 0`, the other two at vendor default — precisely the split
+D22 argues biases pass^k. The run was already invalid for other reasons, so nothing was
+concluded from it, but the near-miss is the point.
+
+What caught it was the run record. Because `effective_params` is stored on the run (D20),
+`SELECT model_key, params FROM runs` showed the mismatch directly rather than leaving it
+to be inferred from the config file, which by then had been rewritten.
+
+**Practice:** commit before rewriting history, and verify a run's stored params against the
+registry rather than assuming the file on disk is what ran.

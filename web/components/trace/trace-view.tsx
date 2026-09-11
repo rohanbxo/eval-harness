@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { AssertionGroup, AssertionRow } from "@/components/trace/assertion-row";
-import { JsonBlock, PassFailBadge, Stat, StatusBadge } from "@/components/domain";
+import { AttemptVerdictBadge, JsonBlock, PassFailBadge, Stat, StatusBadge } from "@/components/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -137,7 +137,15 @@ function TraceHeader({
 
         {open ? (
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Stat label="Verdict" value={<PassFailBadge passed={trace.attempt.passed ?? null} />} />
+            <Stat
+              label="Verdict"
+              value={
+                <AttemptVerdictBadge
+                  status={trace.attempt.status}
+                  passed={trace.attempt.passed}
+                />
+              }
+            />
             <Stat label="Cost" value={formatCost(trace.attempt.cost_usd)} hint={trace.attempt.cost_usd === null ? "no pricing data" : undefined} />
             <Stat
               label="Tokens"

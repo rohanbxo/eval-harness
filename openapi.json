@@ -2840,7 +2840,8 @@
         "type": "null"
        }
       ],
-      "title": "Latency P50 Ms"
+      "title": "Latency P50 Ms",
+      "description": "Successful model-call duration only; excludes throttle and backoff."
      },
      "latency_p95_ms": {
       "anyOf": [
@@ -2852,6 +2853,23 @@
        }
       ],
       "title": "Latency P95 Ms"
+     },
+     "queue_wait_total_ms": {
+      "type": "integer",
+      "title": "Queue Wait Total Ms",
+      "description": "Total time spent rate-limited or backing off across the run.",
+      "default": 0
+     },
+     "queue_wait_p95_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Queue Wait P95 Ms"
      },
      "model_calls": {
       "type": "integer",

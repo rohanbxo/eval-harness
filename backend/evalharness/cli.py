@@ -287,8 +287,25 @@ async def _run_attempts(
                 continue
 
             provider = _provider_for(entry, loaded)
+
+            fake = entry.litellm_model.startswith("fake/")
+
+            async def rate_limit(
+                key: str = entry.key, rpm: int = entry.rpm, fake: bool = fake
+            ) -> float:
+                from evalharness.worker.ratelimit import acquire
+
+                if fake:
+                    return 0.0  # scripted transcripts make no request to shape
+                return await acquire(key, rpm)
+
             result = await run_attempt(
-                AttemptContext(loaded=loaded, provider=provider, repetition=repetition)
+                AttemptContext(
+                    loaded=loaded,
+                    provider=provider,
+                    repetition=repetition,
+                    rate_limit=rate_limit,
+                )
             )
             results.append(result)
             if result.cost_usd is not None:

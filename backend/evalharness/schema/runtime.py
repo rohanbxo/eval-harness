@@ -59,7 +59,18 @@ class AssistantMessage(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     cost_usd: float | None = None
-    latency_ms: int = 0
+    latency_ms: int = Field(
+        default=0,
+        description=(
+            "Duration of the successful provider call only. Excludes retry backoff "
+            "and rate-limiter queueing, which are reported as wait_ms so that "
+            "latency percentiles describe the model rather than the throttle."
+        ),
+    )
+    wait_ms: int = Field(
+        default=0,
+        description="Time spent queued by the rate limiter or backing off before the call.",
+    )
     raw: dict[str, Any] | None = None
 
 

@@ -148,6 +148,7 @@ async def execute_one_attempt(
     cancel_check: Callable[[], Coroutine[Any, Any, bool]] | None,
     on_event: Callable[[Event], Coroutine[Any, Any, None]] | None,
     params: dict[str, Any] | None = None,
+    rate_limit: Callable[[], Coroutine[Any, Any, float]] | None = None,
 ) -> AttemptResult:
     """Thin seam over the runner: imported lazily, and monkeypatched in tests."""
     from evalharness.runner.conversation import AttemptContext, run_attempt
@@ -159,6 +160,7 @@ async def execute_one_attempt(
         cancel_check=cancel_check,
         on_event=on_event,
         params=dict(params or {}),
+        rate_limit=rate_limit,
     )
     return await run_attempt(context)
 
@@ -522,6 +524,7 @@ async def _finalize_run(run_id: str) -> dict[str, Any]:
             attempts = list(await repository.list_attempts(session, run_id))
             latencies = await repository.model_call_latencies(session, run_id)
             steps = await repository.steps_per_turn(session, run_id)
+            waits = await repository.model_call_waits(session, run_id)
             was_cancelled = run.status == RunStatus.CANCELLED
             summary = build_summary(
                 k=run.k,
@@ -529,6 +532,7 @@ async def _finalize_run(run_id: str) -> dict[str, Any]:
                 attempts=attempts,
                 latencies=latencies,
                 steps=steps,
+                waits=waits,
             )
             status = _final_status(attempts, was_cancelled=was_cancelled)
             await repository.set_run_summary(
@@ -598,6 +602,7 @@ def build_summary(
     attempts: Sequence[models.Attempt],
     latencies: Sequence[tuple[str, int]],
     steps: Sequence[tuple[str, int]],
+    waits: Sequence[int] = (),
 ) -> RunSummary:
     """Run-level scoring (SPEC 6.3).
 
@@ -669,6 +674,8 @@ def build_summary(
         cost_usd=_cost(completed),
         latency_p50_ms=percentile(all_latencies, 0.5),
         latency_p95_ms=percentile(all_latencies, 0.95),
+        queue_wait_total_ms=int(sum(waits)),
+        queue_wait_p95_ms=percentile([float(w) for w in waits], 0.95),
         model_calls=len(all_latencies),
         input_tokens=sum(a.input_tokens for a in attempts),
         output_tokens=sum(a.output_tokens for a in attempts),

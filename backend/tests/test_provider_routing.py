@@ -37,6 +37,9 @@ def entry(**overrides: Any) -> ModelEntry:
         "display_name": "Pinned",
         "litellm_model": "openrouter/openai/gpt-5.6-terra",
         "params": {"temperature": 0},
+        # These tests are about routing and budgets, not throttling; leaving the
+        # default 15 rpm in place would make them genuinely wait for tokens.
+        "rpm": 0,
     }
     base.update(overrides)
     return ModelEntry.model_validate(base)

@@ -14,6 +14,9 @@ models:
     litellm_model: "fake/transcript"
     params: {}
     supports_parallel_tool_calls: true
+    # No network request, so nothing to throttle. Without this the test suite
+    # would genuinely sleep waiting for tokens it never needed.
+    rpm: 0
     api_key_env: null
     pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
 
@@ -22,5 +25,8 @@ models:
     litellm_model: "fake/transcript"
     params: {}
     supports_parallel_tool_calls: true
+    # No network request, so nothing to throttle. Without this the test suite
+    # would genuinely sleep waiting for tokens it never needed.
+    rpm: 0
     api_key_env: null
     pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
