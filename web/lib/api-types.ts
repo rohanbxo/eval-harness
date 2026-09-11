@@ -1211,6 +1211,12 @@ export interface components {
              */
             transcript?: string | null;
             /**
+             * Allow Dirty
+             * @description Launch even though the working tree has uncommitted changes. A comparison run otherwise refuses, because the commit it records would not describe the code that ran (DECISIONS D30).
+             * @default false
+             */
+            allow_dirty: boolean;
+            /**
              * Max Cost Usd
              * @description Stop the run once its cumulative cost passes this. Remaining attempts are recorded as errored, so they lower coverage rather than counting as model failures. Null disables the guard (DECISIONS D21).
              */
@@ -1376,6 +1382,30 @@ export interface components {
             queue_wait_total_ms: number;
             /** Queue Wait P95 Ms */
             queue_wait_p95_ms?: number | null;
+            /**
+             * Http Requests
+             * @description HTTP requests this run made, retries included.
+             * @default 0
+             */
+            http_requests: number;
+            /**
+             * Rate Limit Acquires
+             * @description Slots taken from the rate limiter.
+             * @default 0
+             */
+            rate_limit_acquires: number;
+            /**
+             * Unshaped Requests
+             * @description http_requests minus rate_limit_acquires. Must be 0: anything higher means requests bypassed the throttle and the run's rate was not what it claims (DECISIONS D32).
+             * @default 0
+             */
+            unshaped_requests: number;
+            /**
+             * Rate Limit Bypasses
+             * @description Model calls that went out unshaped because the limiter was unreachable or gave up waiting. Non-zero means the run was not fully throttled.
+             * @default 0
+             */
+            rate_limit_bypasses: number;
             /**
              * Model Calls
              * @default 0

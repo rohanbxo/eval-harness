@@ -8,7 +8,13 @@ from evalharness.runner.conversation import (
 )
 from evalharness.runner.fake_model import FakeModel, TranscriptExhaustedError
 from evalharness.runner.litellm_provider import LiteLLMProvider, is_retryable
-from evalharness.runner.provider import Provider, ProviderError, RetryHook, RetryReporting
+from evalharness.runner.provider import (
+    Provider,
+    ProviderError,
+    RateLimited,
+    RetryHook,
+    RetryReporting,
+)
 
 __all__ = [
     "AttemptContext",
@@ -16,6 +22,7 @@ __all__ = [
     "LiteLLMProvider",
     "Provider",
     "ProviderError",
+    "RateLimited",
     "RetryHook",
     "RetryReporting",
     "TranscriptExhaustedError",

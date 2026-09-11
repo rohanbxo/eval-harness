@@ -593,3 +593,48 @@ not fully rate-shaped, which is exactly the context needed to read an unexpected
 429s — or to distrust a latency figure.
 
 Log lines were not enough: nobody reads worker logs when the numbers look plausible.
+
+## D32 — The rate limiter was wrong twice, and its tests could not have caught it
+
+The token-bucket limiter (D27) passed every one of its unit tests and still let a run make
+28-35 requests per rolling minute against a cap of 20. Two separate defects, both
+established from run data rather than reasoned about:
+
+**1. Retries bypassed it entirely.** `acquire` was called once per logical model call, but
+the retry loop lives *inside* the provider. One slot therefore covered up to five real HTTP
+requests. From the events table:
+
+| model | slots taken | HTTP requests | unshaped |
+|---|---|---|---|
+| claude-sonnet-5 | 108 | 268 | 160 |
+| gemini-3.5-flash | 117 | 340 | 223 |
+| gpt-5.6-terra | 93 | 242 | 149 |
+
+The hook now sits on the provider (`RateLimited` protocol) and every attempt in the retry
+loop takes a slot.
+
+**2. A token bucket permits about twice its rate in a rolling window.** Capacity equal to
+rate means the full burst drains at once and then each refill is consumed as it lands.
+Probed directly against Redis at `rpm=15`: 15 granted immediately. A provider counts a
+sliding window, so the limiter now does too — a Redis sorted set, with evict-count-add in
+one Lua script so two workers cannot both observe the last slot.
+
+**3. A guard band, because scoring and sending are not the same instant.** Even with the
+sliding window, measurement showed 13 requests inside the provider's 60 seconds at
+`rpm=12`: a slot is scored when granted, the request leaves a moment later, and the two
+windows are offset by that gap. Entries are held `WINDOW_SECONDS + 3`, so the limiter
+admits marginally *fewer* than `rpm` rather than more. For a guard whose only job is
+staying under someone else's cap, erring low is the only safe direction.
+
+**The testing lesson, which is the real one.** The old tests asserted the bucket's internal
+arithmetic — tokens in, tokens out — and every one passed while production breached the
+cap by 75%. They tested the implementation's story about itself.
+
+The new tests assert what a provider actually measures: **the peak number of requests in
+any rolling 60-second window must not exceed rpm**. They run it across OS processes, since
+a per-process limiter satisfies a single-process test and fails in a prefork worker. And
+`test_a_token_bucket_fails_this_suite` keeps the replaced implementation alive purely to
+prove the assertion catches the bug — if that test ever passes, the invariant test has
+stopped testing anything.
+
+A test that cannot fail against the bug it was written for is decoration.

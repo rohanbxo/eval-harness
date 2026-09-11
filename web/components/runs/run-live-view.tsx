@@ -338,6 +338,17 @@ function SummaryPanel({ run }: { run: RunDetail }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {(summary.unshaped_requests ?? 0) > 0 ? (
+          <InlineError
+            tone="warn"
+            message={
+              `${summary.unshaped_requests} of ${summary.http_requests} HTTP request(s) ` +
+              "bypassed the rate limiter, so this run's request rate was not what it was " +
+              "configured for. Provider rate-limit errors here say more about the harness " +
+              "than about the model."
+            }
+          />
+        ) : null}
         {summary.incomplete ? (
           <InlineError
             tone="warn"

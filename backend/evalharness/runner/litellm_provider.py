@@ -115,10 +115,21 @@ class LiteLLMProvider:
         self._sleep = sleep if sleep is not None else asyncio.sleep
         self._acompletion = acompletion
         self._retry_hook: RetryHook | None = None
+        self._rate_limit: Callable[[], Awaitable[tuple[float, bool]]] | None = None
 
     def set_retry_hook(self, hook: RetryHook | None) -> None:
         """Install the runner's ``retry`` event recorder (SPEC 6.4)."""
         self._retry_hook = hook
+
+    def set_rate_limit_hook(self, hook: Callable[[], Awaitable[tuple[float, bool]]] | None) -> None:
+        """Install the per-model rate limiter.
+
+        It belongs here rather than around ``complete`` because the retry loop
+        below issues real HTTP requests: hooking the outside meant one slot
+        covered up to five requests, and a run made 268 requests against 108
+        slots (DECISIONS D32).
+        """
+        self._rate_limit = hook
 
     # -- request ---------------------------------------------------------
 
@@ -170,7 +181,16 @@ class LiteLLMProvider:
         completion = self._completion_fn()
 
         waited_s = 0.0
+        acquires = 0
+        bypassed_any = False
         for attempt in range(1, self.max_attempts + 1):
+            # Every HTTP request takes a slot, retries included (D32).
+            if self._rate_limit is not None:
+                queued_s, bypassed = await self._rate_limit()
+                waited_s += queued_s
+                acquires += 1
+                bypassed_any = bypassed_any or bypassed
+
             # Timed per attempt: a call that succeeds after two backoffs took as
             # long as the successful call, not as long as the whole ordeal.
             started = time.monotonic()
@@ -201,7 +221,11 @@ class LiteLLMProvider:
                 waited_s += delay
                 continue
             latency_ms = int((time.monotonic() - started) * 1000)
-            return self._normalize(response, latency_ms, wait_ms=int(waited_s * 1000))
+            message = self._normalize(response, latency_ms, wait_ms=int(waited_s * 1000))
+            message.http_requests = attempt
+            message.rate_limit_acquires = acquires
+            message.rate_limit_bypassed = bypassed_any
+            return message
 
         raise ProviderError(f"{self.entry.key}: model call failed")  # pragma: no cover
 

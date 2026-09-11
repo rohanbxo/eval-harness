@@ -193,6 +193,18 @@ class RunSummary(ApiModel):
         description="Total time spent rate-limited or backing off across the run.",
     )
     queue_wait_p95_ms: float | None = None
+    http_requests: int = Field(
+        default=0, description="HTTP requests this run made, retries included."
+    )
+    rate_limit_acquires: int = Field(default=0, description="Slots taken from the rate limiter.")
+    unshaped_requests: int = Field(
+        default=0,
+        description=(
+            "http_requests minus rate_limit_acquires. Must be 0: anything higher means "
+            "requests bypassed the throttle and the run's rate was not what it claims "
+            "(DECISIONS D32)."
+        ),
+    )
     rate_limit_bypasses: int = Field(
         default=0,
         description=(

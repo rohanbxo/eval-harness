@@ -22,7 +22,7 @@ models:
     provider_routing:
       order: [openai]
       allow_fallbacks: false
-    rpm: 15
+    rpm: 12
     supports_parallel_tool_calls: true
     api_key_env: OPENROUTER_API_KEY
 
@@ -34,7 +34,7 @@ models:
     provider_routing:
       order: [anthropic]
       allow_fallbacks: false
-    rpm: 15
+    rpm: 12
     supports_parallel_tool_calls: true
     api_key_env: OPENROUTER_API_KEY
 
@@ -47,7 +47,7 @@ models:
     provider_routing:
       order: [google-ai-studio]
       allow_fallbacks: false
-    rpm: 15
+    rpm: 12
     supports_parallel_tool_calls: true
     api_key_env: OPENROUTER_API_KEY
 
@@ -59,6 +59,6 @@ models:
     provider_routing:
       order: [groq]
       allow_fallbacks: false
-    rpm: 15
+    rpm: 12
     supports_parallel_tool_calls: true
     api_key_env: OPENROUTER_API_KEY

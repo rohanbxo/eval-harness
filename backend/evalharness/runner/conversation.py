@@ -25,7 +25,7 @@ from evalharness.grader import grade_scenario_scope, grade_turn, score_axes
 from evalharness.grader.judge import grade_judge_assertions
 from evalharness.grader.scoring import attempt_passed, critical_failures, total_cost
 from evalharness.loader.scenario_loader import LoadedScenario
-from evalharness.runner.provider import Provider, RetryReporting
+from evalharness.runner.provider import Provider, RateLimited, RetryReporting
 from evalharness.schema.enums import EventType
 from evalharness.schema.runtime import (
     AssertionResult,
@@ -203,6 +203,11 @@ class _Attempt:
         reporter = self.ctx.provider if isinstance(self.ctx.provider, RetryReporting) else None
         if reporter is not None:
             reporter.set_retry_hook(self.on_retry)
+
+        # The limiter goes on the provider so retries take slots too (D32).
+        throttled = self.ctx.provider if isinstance(self.ctx.provider, RateLimited) else None
+        if throttled is not None and self.ctx.rate_limit is not None:
+            throttled.set_rate_limit_hook(self.ctx.rate_limit)
         try:
             for index, config_turn in enumerate(self.scenario.turns):
                 if await self.cancelled_now():
@@ -214,6 +219,8 @@ class _Attempt:
         finally:
             if reporter is not None:
                 reporter.set_retry_hook(None)
+            if throttled is not None:
+                throttled.set_rate_limit_hook(None)
 
         return await self.finish(started)
 
@@ -292,14 +299,6 @@ class _Attempt:
             },
             turn_index=turn.index,
         )
-        # Shape the request rate before the call, and outside the turn budget:
-        # queueing for a token is the harness waiting its turn, not the model
-        # being slow, so it must not consume turn_timeout_s (D27, D28).
-        queued_s = 0.0
-        bypassed = False
-        if self.ctx.rate_limit is not None:
-            queued_s, bypassed = await self.ctx.rate_limit()
-
         try:
             message = await asyncio.wait_for(
                 self.ctx.provider.complete(
@@ -323,7 +322,6 @@ class _Attempt:
             )
             return None
 
-        message.wait_ms += int(queued_s * 1000)
         turn.steps += 1
         self.input_tokens += message.input_tokens
         self.output_tokens += message.output_tokens
@@ -342,7 +340,11 @@ class _Attempt:
                 "wait_ms": message.wait_ms,
                 # True when the throttle was skipped: unreachable, or we gave up
                 # waiting. Counted per run so silent degradation shows up (D31).
-                "rate_limit_bypassed": bypassed,
+                "rate_limit_bypassed": message.rate_limit_bypassed,
+                # The invariant: one slot per HTTP request. A shortfall means
+                # requests went out unshaped (D32), and is surfaced on the run.
+                "http_requests": message.http_requests,
+                "rate_limit_acquires": message.rate_limit_acquires,
                 "tool_calls": [
                     {"id": c.id, "name": c.name, "arguments": c.arguments}
                     for c in message.tool_calls

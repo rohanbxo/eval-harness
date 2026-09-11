@@ -54,7 +54,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    command: celery -A evalharness.worker.app worker --loglevel=INFO --concurrency=4
+    command: >
+      celery -A evalharness.worker.app worker
+      --loglevel=${CELERY_LOGLEVEL:-INFO} --concurrency=${CELERY_CONCURRENCY:-4}
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-evalharness}:${POSTGRES_PASSWORD:-evalharness}@postgres:5432/${POSTGRES_DB:-evalharness}
       REDIS_URL: redis://redis:6379/0

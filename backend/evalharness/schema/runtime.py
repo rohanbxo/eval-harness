@@ -71,6 +71,21 @@ class AssistantMessage(BaseModel):
         default=0,
         description="Time spent queued by the rate limiter or backing off before the call.",
     )
+    http_requests: int = Field(
+        default=1,
+        description="HTTP requests this call actually made, retries included.",
+    )
+    rate_limit_bypassed: bool = Field(
+        default=False,
+        description="At least one request in this call skipped the throttle.",
+    )
+    rate_limit_acquires: int = Field(
+        default=0,
+        description=(
+            "Slots taken from the limiter. Must equal http_requests: a shortfall means "
+            "requests went out unshaped, which is the defect D32 fixed."
+        ),
+    )
     raw: dict[str, Any] | None = None
 
 

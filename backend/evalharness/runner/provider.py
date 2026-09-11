@@ -7,6 +7,7 @@ speaks whatever the vendor speaks. Two implementations ship: ``FakeModel``
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, runtime_checkable
 
 from evalharness.schema.runtime import AssistantMessage
@@ -58,3 +59,17 @@ class RetryReporting(Protocol):
     """
 
     def set_retry_hook(self, hook: RetryHook | None) -> None: ...
+
+
+@runtime_checkable
+class RateLimited(Protocol):
+    """A provider whose every HTTP request should take a rate-limiter slot.
+
+    The hook is installed on the provider rather than called around it because
+    the retry loop lives inside: throttling the outside let one slot cover up to
+    five real requests (DECISIONS D32).
+    """
+
+    def set_rate_limit_hook(
+        self, hook: Callable[[], Awaitable[tuple[float, bool]]] | None
+    ) -> None: ...

@@ -2581,6 +2581,12 @@
       "title": "Transcript",
       "description": "FakeModel only: transcript stem to replay (default 'golden')."
      },
+     "allow_dirty": {
+      "type": "boolean",
+      "title": "Allow Dirty",
+      "description": "Launch even though the working tree has uncommitted changes. A comparison run otherwise refuses, because the commit it records would not describe the code that ran (DECISIONS D30).",
+      "default": false
+     },
      "max_cost_usd": {
       "anyOf": [
        {
@@ -2870,6 +2876,30 @@
        }
       ],
       "title": "Queue Wait P95 Ms"
+     },
+     "http_requests": {
+      "type": "integer",
+      "title": "Http Requests",
+      "description": "HTTP requests this run made, retries included.",
+      "default": 0
+     },
+     "rate_limit_acquires": {
+      "type": "integer",
+      "title": "Rate Limit Acquires",
+      "description": "Slots taken from the rate limiter.",
+      "default": 0
+     },
+     "unshaped_requests": {
+      "type": "integer",
+      "title": "Unshaped Requests",
+      "description": "http_requests minus rate_limit_acquires. Must be 0: anything higher means requests bypassed the throttle and the run's rate was not what it claims (DECISIONS D32).",
+      "default": 0
+     },
+     "rate_limit_bypasses": {
+      "type": "integer",
+      "title": "Rate Limit Bypasses",
+      "description": "Model calls that went out unshaped because the limiter was unreachable or gave up waiting. Non-zero means the run was not fully throttled.",
+      "default": 0
      },
      "model_calls": {
       "type": "integer",

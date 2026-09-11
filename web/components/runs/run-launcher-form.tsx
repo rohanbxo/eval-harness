@@ -91,6 +91,11 @@ export function RunLauncherForm({ models, scenarios }: Props) {
       scenario_ids: selected,
       k,
       params_override: overrides,
+      // A run launched from the dashboard is a comparison run: hold it to the
+      // clean-tree guard (D30). The API returns 409 with an explanation, which
+      // the form surfaces, rather than recording a commit that is not the code
+      // that ran.
+      allow_dirty: false,
     });
   }
 

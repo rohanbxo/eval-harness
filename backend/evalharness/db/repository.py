@@ -403,6 +403,28 @@ async def model_call_waits(session: AsyncSession, run_id: str) -> list[int]:
     return waits
 
 
+async def request_shaping(session: AsyncSession, run_id: str) -> tuple[int, int]:
+    """``(http_requests, limiter_acquires)`` for a whole run (D32).
+
+    The invariant is that these are equal: one slot per HTTP request. Any gap is
+    requests that went out unshaped, which is what let a run make 268 requests
+    against 108 slots and trip a provider cap it was supposedly under.
+    """
+    statement = (
+        select(models.Event.payload)
+        .join(models.Attempt, models.Attempt.id == models.Event.attempt_id)
+        .where(models.Attempt.run_id == run_id, models.Event.type == "model_response")
+    )
+    requests = acquires = 0
+    for (payload,) in (await session.execute(statement)).all():
+        data = payload or {}
+        value = data.get("http_requests")
+        requests += int(value) if isinstance(value, int | float) else 0
+        value = data.get("rate_limit_acquires")
+        acquires += int(value) if isinstance(value, int | float) else 0
+    return requests, acquires
+
+
 async def rate_limit_bypasses(session: AsyncSession, run_id: str) -> int:
     """Model calls that skipped the throttle (D31)."""
     statement = (
