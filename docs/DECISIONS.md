@@ -663,8 +663,11 @@ Two changes:
   both limiter queueing and retry backoff. Neither is the model spending its turn.
 
 Because `turn_timeout_s` now deliberately ignores elapsed time, something else has to stop
-an attempt that is starved rather than slow. `attempt_timeout_s` (default 600s) is that
-backstop and is the only limit here measured in real wall clock, waits included.
+an attempt that is starved rather than slow. `attempt_timeout_s` (default 1800s) is that
+backstop and is the only limit here measured in real wall clock, waits included. It is
+deliberately generous: the longest real attempt observed was 380s, and a data-analyst
+attempt can legitimately need three turns of 180s model time plus ten queued calls. A
+tight cap there would re-create this same bug one level up.
 
 `tests/test_turn_budget.py` pins the guarantee: a limiter wait twice the length of the
 whole turn budget, with an instant model, must still pass the turn.

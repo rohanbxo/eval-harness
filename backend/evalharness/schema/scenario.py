@@ -27,13 +27,18 @@ class Limits(BaseModel):
         ),
     )
     attempt_timeout_s: float = Field(
-        default=600.0,
+        default=1800.0,
         gt=0,
         description=(
             "Hard wall-clock ceiling for one attempt, waits included. Because "
             "turn_timeout_s deliberately ignores queueing, something has to stop "
             "an attempt that is starved rather than slow; this is that backstop, "
-            "and it is the only limit here measured in real elapsed time."
+            "and it is the only limit here measured in real elapsed time. "
+            "Deliberately generous: the longest real attempt observed was 380s, "
+            "and a data-analyst attempt can legitimately need 3 turns x 180s of "
+            "model time plus ten queued calls. A tight cap here would re-create "
+            "the very bug D33 fixed, one level up. 30 minutes still catches a "
+            "genuine hang, which is all this is for."
         ),
     )
 
