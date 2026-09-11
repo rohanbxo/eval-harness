@@ -555,3 +555,41 @@ to be inferred from the config file, which by then had been rewritten.
 
 **Practice:** commit before rewriting history, and verify a run's stored params against the
 registry rather than assuming the file on disk is what ran.
+
+## D30 — A comparison run refuses to launch from a dirty tree or a drifted registry
+
+**Why both checks exist:** each failure has already happened. A `git filter-repo` reverted
+an uncommitted registry edit and the next run went out with temperature pinned on half the
+field (D29) — the run recorded a commit that did not describe the code that ran, and sent
+params nobody had chosen.
+
+**Decision.** Before any attempt fires, `run` builds a manifest — effective params, pinned
+provider, fallbacks, rpm, reasoning effort per model, plus the commit and the scenario
+hashes — prints it, and then verifies it:
+
+1. **Dirty tree → refuse.** A run's commit is its provenance; from a dirty tree that
+   provenance is false. `--allow-dirty` (CLI) and `allow_dirty` (API) exist for throwaway
+   runs, and say plainly in the message that this is the escape hatch.
+2. **Registry drift → refuse.** `verify_manifest` deliberately re-reads `models.yaml`
+   rather than trusting the manifest it was handed. The point is to catch a file that no
+   longer says what the caller believes, not to confirm a manifest agrees with itself.
+
+The API returns 409 rather than 400: the request is well-formed, the repository state
+conflicts with it.
+
+Tests pass `allow_dirty` explicitly, because a development tree is routinely dirty and a
+test whose outcome depends on that is a flaky test. The guard itself is covered directly.
+
+## D31 — Limiter bypasses are counted, not just logged
+
+The rate limiter deliberately fails open (D27): an unreachable Redis or a 120-second wait
+lets the call through unshaped rather than stalling the run. That is the right default and
+also a silent one — a run could be almost entirely unthrottled and look identical to a
+properly throttled one in every number it reports.
+
+`acquire_detailed` now reports whether it bypassed, each model-response event records it,
+and `rate_limit_bypasses` appears on the run summary. A non-zero count means the run was
+not fully rate-shaped, which is exactly the context needed to read an unexpected crop of
+429s — or to distrust a latency figure.
+
+Log lines were not enough: nobody reads worker logs when the numbers look plausible.

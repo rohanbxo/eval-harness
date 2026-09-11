@@ -21,6 +21,7 @@ from evalharness.worker.ratelimit import (
     RateLimiter,
     RedisRateLimiter,
     acquire,
+    acquire_detailed,
     get_rate_limiter,
     set_rate_limiter,
 )
@@ -217,11 +218,14 @@ async def test_a_full_attempt_is_throttled_and_reports_its_wait() -> None:
     clock = FakeClock()
     calls = 0
 
-    async def rate_limit() -> float:
+    async def rate_limit() -> tuple[float, bool]:
         nonlocal calls
         calls += 1
         # 2 rpm: a token every 30s, so only the first two calls go straight out.
-        return await acquire("capped", 2, limiter=limiter, sleep=clock.sleep, max_wait_s=600)
+        outcome = await acquire_detailed(
+            "capped", 2, limiter=limiter, sleep=clock.sleep, max_wait_s=600
+        )
+        return (outcome.waited_s, outcome.bypassed)
 
     result = await run_attempt(
         AttemptContext(
@@ -250,8 +254,9 @@ async def test_an_unthrottled_attempt_records_no_wait() -> None:
     golden = load_transcripts(TRAVEL_BOOKING)["golden"]
     limiter = MemoryRateLimiter()
 
-    async def rate_limit() -> float:
-        return await acquire("roomy", 600, limiter=limiter)
+    async def rate_limit() -> tuple[float, bool]:
+        outcome = await acquire_detailed("roomy", 600, limiter=limiter)
+        return (outcome.waited_s, outcome.bypassed)
 
     result = await run_attempt(
         AttemptContext(

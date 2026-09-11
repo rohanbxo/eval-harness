@@ -34,6 +34,7 @@ from evalharness.loader import (
     load_transcripts,
 )
 from evalharness.runner import AttemptContext, FakeModel, LiteLLMProvider, Provider, run_attempt
+from evalharness.runner.manifest import ManifestError, build_manifest, verify_manifest
 from evalharness.schema.registry import ModelEntry
 from evalharness.schema.runtime import AttemptResult
 from evalharness.schema.transcript import Transcript
@@ -78,6 +79,11 @@ def _settings() -> Settings:
 
 def _scenarios_root(override: Path | None) -> Path:
     return override if override is not None else _settings().scenarios_dir
+
+
+def _repo_root() -> Path:
+    """The checkout root, inferred from the configured scenarios directory."""
+    return Path(str(_settings().scenarios_dir)).parent
 
 
 def _models_file(override: Path | None) -> Path:
@@ -292,12 +298,13 @@ async def _run_attempts(
 
             async def rate_limit(
                 key: str = entry.key, rpm: int = entry.rpm, fake: bool = fake
-            ) -> float:
-                from evalharness.worker.ratelimit import acquire
+            ) -> tuple[float, bool]:
+                from evalharness.worker.ratelimit import acquire_detailed
 
                 if fake:
-                    return 0.0  # scripted transcripts make no request to shape
-                return await acquire(key, rpm)
+                    return (0.0, False)  # scripted transcripts make no request
+                outcome = await acquire_detailed(key, rpm)
+                return (outcome.waited_s, outcome.bypassed)
 
             result = await run_attempt(
                 AttemptContext(
@@ -380,6 +387,13 @@ def run(
     include_events: Annotated[
         bool, typer.Option("--include-events", help="Include the full event log in --out.")
     ] = False,
+    allow_dirty: Annotated[
+        bool,
+        typer.Option(
+            "--allow-dirty",
+            help="Launch even with uncommitted changes. For throwaway runs only.",
+        ),
+    ] = False,
     scenarios_dir: ScenariosDirOption = None,
     models_file: ModelsFileOption = None,
 ) -> None:
@@ -422,6 +436,20 @@ def run(
                 f"unknown scenario(s): {', '.join(unknown)}; available: {', '.join(sorted(by_id))}"
             )
         selected = [by_id[w] for w in wanted]
+
+    # Pre-flight: print exactly what will be sent, and refuse to launch if it
+    # disagrees with the registry or if the tree is dirty (D30).
+    manifest = build_manifest(
+        [entry.key],
+        models_file=_models_file(models_file),
+        repo_root=_repo_root(),
+        scenario_hashes={s.id: s.config_hash for s in selected},
+    )
+    console.print(manifest.render())
+    try:
+        verify_manifest(manifest, models_file=_models_file(models_file), allow_dirty=allow_dirty)
+    except ManifestError as exc:
+        raise _fail(str(exc), code=1) from exc
 
     console.print(f"running [bold]{entry.key}[/bold] over {len(selected)} scenario(s), k={k}")
     try:

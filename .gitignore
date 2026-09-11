@@ -20,4 +20,6 @@ out/
 # which is how ~3MB of traces got committed once already.
 results*.json
 results/
+run_ids.json
+openapi-check.json
 .DS_Store

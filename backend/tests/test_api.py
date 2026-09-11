@@ -98,7 +98,15 @@ async def _launch(
 ) -> dict[str, Any]:
     response = await client.post(
         "/api/runs",
-        json={"model_key": "fake", "scenario_ids": [scenario], "k": k, "transcript": transcript},
+        json={
+            "model_key": "fake",
+            "scenario_ids": [scenario],
+            "k": k,
+            "transcript": transcript,
+            # Test runs are throwaway; the tree is routinely dirty in development
+            # and the guard is exercised directly in test_manifest.py.
+            "allow_dirty": True,
+        },
     )
     assert response.status_code == 201, response.text
     return dict(response.json())
@@ -261,14 +269,21 @@ async def test_unknown_run_is_404(client: AsyncClient) -> None:
 
 async def test_unknown_model_is_rejected(client: AsyncClient) -> None:
     response = await client.post(
-        "/api/runs", json={"model_key": "nope", "scenario_ids": ["travel-booking"], "k": 1}
+        "/api/runs",
+        json={
+            "model_key": "nope",
+            "scenario_ids": ["travel-booking"],
+            "k": 1,
+            "allow_dirty": True,
+        },
     )
     assert response.status_code == 404
 
 
 async def test_unknown_scenario_is_rejected(client: AsyncClient) -> None:
     response = await client.post(
-        "/api/runs", json={"model_key": "fake", "scenario_ids": ["nope"], "k": 1}
+        "/api/runs",
+        json={"model_key": "fake", "scenario_ids": ["nope"], "k": 1, "allow_dirty": True},
     )
     assert response.status_code == 400
     assert "nope" in response.text

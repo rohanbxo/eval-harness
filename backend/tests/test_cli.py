@@ -45,7 +45,12 @@ def flat(output: str) -> str:
 
 
 def with_config(*args: str) -> tuple[int, str]:
-    return invoke(*args, "--scenarios-dir", str(SCENARIOS_DIR), "--models-file", str(MODELS_FILE))
+    extra: list[str] = ["--scenarios-dir", str(SCENARIOS_DIR), "--models-file", str(MODELS_FILE)]
+    # `run` refuses a dirty tree (D30). Test runs are throwaway, and the guard
+    # itself is covered directly in test_manifest.py.
+    if args and args[0] == "run":
+        extra.append("--allow-dirty")
+    return invoke(*args, *extra)
 
 
 # --------------------------------------------------------------------------- #
@@ -309,6 +314,7 @@ def test_run_needs_a_golden_transcript_for_the_fake_model(tmp_path: Path) -> Non
         "--scenarios",
         "travel-booking",
         "--no-db",
+        "--allow-dirty",
         "--scenarios-dir",
         str(tmp_path),
         "--models-file",

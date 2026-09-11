@@ -109,6 +109,14 @@ class RunCreate(ApiModel):
         default=None,
         description="FakeModel only: transcript stem to replay (default 'golden').",
     )
+    allow_dirty: bool = Field(
+        default=False,
+        description=(
+            "Launch even though the working tree has uncommitted changes. A comparison "
+            "run otherwise refuses, because the commit it records would not describe "
+            "the code that ran (DECISIONS D30)."
+        ),
+    )
     max_cost_usd: float | None = Field(
         default=None,
         ge=0,
@@ -185,6 +193,13 @@ class RunSummary(ApiModel):
         description="Total time spent rate-limited or backing off across the run.",
     )
     queue_wait_p95_ms: float | None = None
+    rate_limit_bypasses: int = Field(
+        default=0,
+        description=(
+            "Model calls that went out unshaped because the limiter was unreachable "
+            "or gave up waiting. Non-zero means the run was not fully throttled."
+        ),
+    )
     model_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0

@@ -21,6 +21,7 @@ import logging
 import threading
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import Any
 
 LOGGER = logging.getLogger(__name__)
@@ -175,14 +176,24 @@ def _redis_url() -> str:
         return os.environ.get("REDIS_URL", "")
 
 
-async def acquire(
+@dataclass(frozen=True)
+class Acquisition:
+    """The outcome of one attempt to take a token."""
+
+    waited_s: float
+    bypassed: bool = False
+    """True when the call went out unshaped: the limiter failed, or we gave up
+    waiting. Counted per run so a quiet degradation is visible (D31)."""
+
+
+async def acquire_detailed(
     model_key: str,
     rpm: int,
     *,
     limiter: RateLimiter | None = None,
     max_wait_s: float = MAX_WAIT_SECONDS,
     sleep: Any = None,
-) -> float:
+) -> Acquisition:
     """Wait until this model may make another request. Returns seconds waited.
 
     A limiter failure never blocks the call: if Redis is unreachable the request
@@ -198,16 +209,21 @@ async def acquire(
             wait = await limiter.take(model_key, rpm)
         except Exception as exc:
             LOGGER.warning("rate limiter unavailable for %s: %s", model_key, exc)
-            return waited
+            return Acquisition(waited, bypassed=True)
         if wait <= 0:
-            return waited
+            return Acquisition(waited)
         if waited >= max_wait_s:
             LOGGER.warning(
                 "waited %.1fs for a %s token and gave up; letting the call through",
                 waited,
                 model_key,
             )
-            return waited
+            return Acquisition(waited, bypassed=True)
         pause = min(wait, POLL_SECONDS, max_wait_s - waited)
         await sleeper(pause)
         waited += pause
+
+
+async def acquire(model_key: str, rpm: int, **kwargs: Any) -> float:
+    """Seconds waited for a token. Thin wrapper for callers that ignore bypasses."""
+    return (await acquire_detailed(model_key, rpm, **kwargs)).waited_s

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -63,6 +64,17 @@ async def create_run(body: schemas.RunCreate, session: SessionDep) -> schemas.Ru
             status.HTTP_400_BAD_REQUEST,
             f"scenario(s) failed validation: {', '.join(sorted(invalid))}",
         )
+
+    # Pre-flight guards (D30): a comparison run must be traceable to a commit
+    # that actually describes it, and must send what the registry resolves to.
+    from evalharness.runner.manifest import ManifestError, build_manifest, verify_manifest
+
+    models_path = Path(str(settings().models_file))
+    manifest = build_manifest([entry.key], models_file=models_path, repo_root=Path_of_repo_root())
+    try:
+        verify_manifest(manifest, models_file=models_path, allow_dirty=body.allow_dirty)
+    except ManifestError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
     # SPEC 8.2: the run records exactly which definition produced it.
     config_hashes: dict[str, str] = {}

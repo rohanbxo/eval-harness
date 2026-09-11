@@ -48,6 +48,27 @@ def compute_config_hash(directory: Path) -> str:
     return digest.hexdigest()
 
 
+def is_dirty(repo_root: Path) -> bool:
+    """Whether the working tree has uncommitted changes.
+
+    A comparison run records the commit it ran on so results stay traceable to a
+    definition. From a dirty tree that record is a lie: the commit named does not
+    describe the code that ran (DECISIONS D30).
+    """
+    try:
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return False  # not a git checkout: nothing to be dirty about
+    return bool(status)
+
+
 def git_commit(repo_root: Path) -> str:
     """The current commit, or ``"<sha>-dirty"`` when the tree has changes (SPEC 8.2)."""
     try:

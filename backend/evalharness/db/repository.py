@@ -403,6 +403,20 @@ async def model_call_waits(session: AsyncSession, run_id: str) -> list[int]:
     return waits
 
 
+async def rate_limit_bypasses(session: AsyncSession, run_id: str) -> int:
+    """Model calls that skipped the throttle (D31)."""
+    statement = (
+        select(models.Event.payload)
+        .join(models.Attempt, models.Attempt.id == models.Event.attempt_id)
+        .where(models.Attempt.run_id == run_id, models.Event.type == "model_response")
+    )
+    return sum(
+        1
+        for (payload,) in (await session.execute(statement)).all()
+        if (payload or {}).get("rate_limit_bypassed") is True
+    )
+
+
 async def steps_per_turn(session: AsyncSession, run_id: str) -> list[tuple[str, int]]:
     """``(scenario_id, model calls)`` per turn, for the mean-steps-per-turn stat."""
     statement = (
