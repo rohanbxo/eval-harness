@@ -1,0 +1,8 @@
+{
+  "responses": [
+    {"match": {"flight_id": {"equals": "FL-101"}}, "response": {"refundable": false, "change_fee_aed": 150}},
+    {"match": {"flight_id": {"equals": "FL-204"}}, "response": {"refundable": true, "change_fee_aed": 0}}
+  ],
+  "default": {"error": "not_found", "message": "No flight with that ID."},
+  "default_ok": false
+}

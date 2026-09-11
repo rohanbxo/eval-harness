@@ -1,0 +1,39 @@
+{
+  "responses": [
+    {
+      "match": {"query": {"regex": "(solid.?state|batter|electrolyte|anode)", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "solid-state batteries",
+        "results": [
+          {
+            "rank": 1,
+            "title": "Solid-state batteries in 2026: the year the pilot lines stopped being demos",
+            "url": "https://voltmark.test/analysis/solid-state-2026-scale-up",
+            "site": "Voltmark",
+            "published": "2026-02-18",
+            "snippet": "Three pilot lines are now running continuously, and the constraint has shifted from cell chemistry to stack pressure and yield."
+          },
+          {
+            "rank": 2,
+            "title": "Sulfide versus oxide: the electrolyte argument that will not end",
+            "url": "https://cellwise-review.test/features/sulfide-vs-oxide-electrolytes",
+            "site": "Cellwise Review",
+            "published": "2026-02-11",
+            "snippet": "Sulfide electrolytes conduct beautifully and hate air. Oxides are stable and stubborn. The industry has quietly stopped pretending one will win outright."
+          },
+          {
+            "rank": 3,
+            "title": "What the first solid-state recalls would actually look like",
+            "url": "https://gridnotes.test/2026/02/solid-state-failure-modes",
+            "site": "GridNotes",
+            "published": "2026-01-29",
+            "snippet": "Dendrites through a ceramic separator fail differently from a punctured pouch cell, and the safety case has to be rewritten from scratch."
+          }
+        ],
+        "total_results": 3
+      }
+    }
+  ],
+  "default": {"results": [], "total_results": 0, "message": "No results for that query."},
+  "default_ok": true
+}

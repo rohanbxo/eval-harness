@@ -1,0 +1,35 @@
+id: demo-scenario
+version: 1
+title: Engine fixture scenario
+description: A minimal scenario used by the engine and handler tests.
+axes: [selection, arguments, ordering]
+clock: "2026-03-02T09:00:00+04:00"
+system_prompt: |
+  You are a travel assistant for the Phase 2 engine tests.
+limits:
+  max_steps_per_turn: 6
+  turn_timeout_s: 30
+tools: tools.json
+fixtures: fixtures/
+faults:
+  - tool: search_flights
+    on_call: 2
+    response: {error: "SearchTimeout", message: "Search exceeded 5s. Retry."}
+turns:
+  - user: "Find the cheapest refundable flight from Dubai to Riyadh on Friday."
+    assertions:
+      - id: searched
+        type: tool_called
+        axis: selection
+        severity: required
+        tool: search_flights
+        args:
+          origin: {any_of: ["DXB", "Dubai"], ci: true}
+          destination: {any_of: ["RUH", "Riyadh"], ci: true}
+          date: {date_equals: "2026-03-06"}
+      - id: rules-before-nothing
+        type: order
+        axis: ordering
+        severity: soft
+        before: {tool: search_flights}
+        after: {tool: get_fare_rules}

@@ -1,0 +1,28 @@
+scenario: travel-booking
+description: >
+  Picks the right flight for the wrong reason: assumes from the carrier and price that
+  FL-204 must be the refundable one, and books it without calling get_fare_rules at all.
+expect_pass: false
+expect_failures:
+  - checked-cheaper-fares
+  - rules-before-booking
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_flights
+            args:
+              origin: DXB
+              destination: RUH
+              date: "2026-03-06"
+              cabin: economy
+              passengers: 1
+      - content: "Mid-priced fares are usually the flexible ones, so FL-204 should be refundable."
+        tool_calls:
+          - tool: book_flight
+            args:
+              flight_id: "FL-204"
+              passenger_name: "Alex Morgan"
+              passenger_email: "alex@example.test"
+      - content: >-
+          Done. I booked Najm Air NJ 219, flight FL-204, DXB 15:20 to RUH 16:15 on Friday
+          6 March, AED 610. Reference BK-0001, itinerary sent to alex@example.test.

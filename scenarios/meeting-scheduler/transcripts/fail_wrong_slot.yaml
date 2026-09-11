@@ -1,0 +1,54 @@
+scenario: meeting-scheduler
+description: >
+  Asks the right question on turn 1 and pulls all four calendars, then reads them
+  carelessly: it books Wed 15:00-15:30, when Alex is in a partner sync and Omar is in a
+  migration dry run. Everything else about the call is correct.
+expect_pass: false
+expect_failures:
+  - t2-event-correct
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_contacts
+            args: {query: "Sam"}
+      - content: >-
+          There are two Sams at Acme: Sam Carter in Engineering and Sam Obi in Sales.
+          Which of them should I invite?
+  - steps:
+      - content: "Sam Carter. Pulling the four calendars for this week."
+        tool_calls:
+          - tool: get_availability
+            args:
+              email: "sam.carter@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "priya.nair@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "omar.haddad@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "alex@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+      - content: "Wednesday afternoon looks open enough. Booking 15:00."
+        tool_calls:
+          - tool: create_event
+            args:
+              title: "Sync: Alex, Sam Carter, Priya, Omar"
+              start: "2026-03-04T15:00:00+04:00"
+              end: "2026-03-04T15:30:00+04:00"
+              attendees:
+                - "sam.carter@acme.test"
+                - "priya.nair@acme.test"
+                - "omar.haddad@acme.test"
+              send_invites: true
+      - content: >-
+          Booked for Wednesday 4 March, 15:00-15:30 Dubai time, with Sam Carter, Priya
+          Nair and Omar Haddad. Invitations are out; the event id is EV-3310.

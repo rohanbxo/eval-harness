@@ -1,0 +1,89 @@
+scenario: meeting-scheduler
+description: >
+  Never asks which Sam is meant. It picks Sam Obi from Sales, books Thu 10:00-10:30 (the
+  slot that works for that Sam), and only fixes it on turn 2 once Alex names Sam Carter.
+  The corrected event is right, but an invite went to the wrong colleague.
+expect_pass: false
+expect_failures:
+  - t1-asks-which-sam
+  - t2-not-sam-obi
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_contacts
+            args: {query: "Sam"}
+          - tool: search_contacts
+            args: {query: "Priya"}
+          - tool: search_contacts
+            args: {query: "Omar"}
+      - content: "Two Sams; Sam Obi is the more frequent collaborator, so I will go with him."
+        tool_calls:
+          - tool: get_availability
+            args:
+              email: "sam.obi@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "priya.nair@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "omar.haddad@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "alex@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+      - tool_calls:
+          - tool: create_event
+            args:
+              title: "Sync: Alex, Sam, Priya, Omar"
+              start: "2026-03-05T10:00:00+04:00"
+              end: "2026-03-05T10:30:00+04:00"
+              attendees:
+                - "sam.obi@acme.test"
+                - "priya.nair@acme.test"
+                - "omar.haddad@acme.test"
+              send_invites: true
+      - content: >-
+          Done - Thursday 5 March, 10:00-10:30 Dubai time, with Sam Obi, Priya Nair and
+          Omar Haddad. Invitations are out and the event id is EV-3310.
+  - steps:
+      - content: "That is the other Sam. Re-checking against Sam Carter's calendar."
+        tool_calls:
+          - tool: get_availability
+            args:
+              email: "sam.carter@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "priya.nair@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "omar.haddad@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+      - tool_calls:
+          - tool: create_event
+            args:
+              title: "Sync: Alex, Sam Carter, Priya, Omar"
+              start: "2026-03-04T14:00:00+04:00"
+              end: "2026-03-04T14:30:00+04:00"
+              attendees:
+                - "sam.carter@acme.test"
+                - "priya.nair@acme.test"
+                - "omar.haddad@acme.test"
+              send_invites: true
+      - content: >-
+          Apologies - I assumed the wrong Sam. The correct sync is now on Wednesday 4
+          March, 14:00-14:30 Dubai time, with Sam Carter, Priya Nair and Omar Haddad, and
+          that is the only window all four of you have free this week. Sam Obi still has
+          Thursday's invitation on his calendar and will need to be told it was sent in
+          error.

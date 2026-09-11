@@ -1,0 +1,54 @@
+{
+  "responses": [
+    {
+      "match": {"flight_id": {"equals": "FL-101"}},
+      "response": {
+        "flight_id": "FL-101",
+        "fare_brand": "Saver Lite",
+        "refundable": false,
+        "refund_conditions": "Non-refundable. Government taxes only are returned on a no-show.",
+        "changeable": true,
+        "change_fee_aed": 150,
+        "checked_baggage_kg": 20
+      }
+    },
+    {
+      "match": {"flight_id": {"equals": "FL-150"}},
+      "response": {
+        "flight_id": "FL-150",
+        "fare_brand": "Saver Plus",
+        "refundable": false,
+        "refund_conditions": "Non-refundable. One free date change is permitted up to 24 hours before departure.",
+        "changeable": true,
+        "change_fee_aed": 0,
+        "checked_baggage_kg": 25
+      }
+    },
+    {
+      "match": {"flight_id": {"equals": "FL-204"}},
+      "response": {
+        "flight_id": "FL-204",
+        "fare_brand": "Flex",
+        "refundable": true,
+        "refund_conditions": "Fully refundable to the original payment method up to 2 hours before departure.",
+        "changeable": true,
+        "change_fee_aed": 0,
+        "checked_baggage_kg": 30
+      }
+    },
+    {
+      "match": {"flight_id": {"equals": "FL-310"}},
+      "response": {
+        "flight_id": "FL-310",
+        "fare_brand": "Flex Premium",
+        "refundable": true,
+        "refund_conditions": "Fully refundable at any time before departure, including no-shows.",
+        "changeable": true,
+        "change_fee_aed": 0,
+        "checked_baggage_kg": 35
+      }
+    }
+  ],
+  "default": {"error": "not_found", "message": "No flight with that ID."},
+  "default_ok": false
+}

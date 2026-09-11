@@ -1,0 +1,25 @@
+[
+  {
+    "name": "search_flights",
+    "description": "Search available flights.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin": {
+          "type": "string"
+        },
+        "destination": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "destination"
+      ]
+    },
+    "mock": {
+      "kind": "fixture",
+      "file": "fixtures/search_flights.json"
+    }
+  }
+]

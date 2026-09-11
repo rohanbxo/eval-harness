@@ -1,0 +1,14 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {
+        "order_id": "OD-1",
+        "status": "confirmed"
+      }
+    }
+  ],
+  "default": {
+    "error": "unavailable"
+  }
+}

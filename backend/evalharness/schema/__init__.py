@@ -1,0 +1,120 @@
+"""Pydantic models for every piece of config and every runtime record.
+
+Config only enters the system through these models (see CLAUDE.md): no raw dict
+access to scenario data outside ``evalharness.loader``.
+"""
+
+from evalharness.schema.assertions import (
+    ArgsNotContainsAssertion,
+    Assertion,
+    ClarificationAssertion,
+    JudgeAssertion,
+    NoToolCallsAssertion,
+    OrderAssertion,
+    ParallelAssertion,
+    RecoveredAssertion,
+    ResponseMatchesAssertion,
+    ResponseNotMatchesAssertion,
+    ToolCalledAssertion,
+    ToolNotCalledAssertion,
+    ToolResultMatchesAssertion,
+)
+from evalharness.schema.enums import (
+    AssertionType,
+    AttemptStatus,
+    Axis,
+    EventType,
+    MockKind,
+    ResultMatchMode,
+    RunStatus,
+    Scope,
+    Severity,
+)
+from evalharness.schema.matchers import (
+    PRIMARY_MATCHER_KEYS,
+    ArgMatchers,
+    CallSelector,
+    CountConstraint,
+    Matcher,
+)
+from evalharness.schema.registry import ModelEntry, ModelRegistry, Pricing
+from evalharness.schema.runtime import (
+    AssertionResult,
+    AssistantMessage,
+    AttemptResult,
+    Event,
+    ToolCall,
+    ToolCallRecord,
+    ToolResult,
+    TurnRecord,
+)
+from evalharness.schema.scenario import Fault, Limits, Scenario, Turn
+from evalharness.schema.tools import (
+    FixtureFile,
+    FixtureMock,
+    FixtureResponse,
+    HandlerMock,
+    MockConfig,
+    ToolDefinition,
+)
+from evalharness.schema.transcript import (
+    ScriptedStep,
+    ScriptedToolCall,
+    ScriptedTurn,
+    Transcript,
+)
+
+__all__ = [
+    "PRIMARY_MATCHER_KEYS",
+    "ArgMatchers",
+    "ArgsNotContainsAssertion",
+    "Assertion",
+    "AssertionResult",
+    "AssertionType",
+    "AssistantMessage",
+    "AttemptResult",
+    "AttemptStatus",
+    "Axis",
+    "CallSelector",
+    "ClarificationAssertion",
+    "CountConstraint",
+    "Event",
+    "EventType",
+    "Fault",
+    "FixtureFile",
+    "FixtureMock",
+    "FixtureResponse",
+    "HandlerMock",
+    "JudgeAssertion",
+    "Limits",
+    "Matcher",
+    "MockConfig",
+    "MockKind",
+    "ModelEntry",
+    "ModelRegistry",
+    "NoToolCallsAssertion",
+    "OrderAssertion",
+    "ParallelAssertion",
+    "Pricing",
+    "RecoveredAssertion",
+    "ResponseMatchesAssertion",
+    "ResponseNotMatchesAssertion",
+    "ResultMatchMode",
+    "RunStatus",
+    "Scenario",
+    "Scope",
+    "ScriptedStep",
+    "ScriptedToolCall",
+    "ScriptedTurn",
+    "Severity",
+    "ToolCall",
+    "ToolCallRecord",
+    "ToolCalledAssertion",
+    "ToolDefinition",
+    "ToolNotCalledAssertion",
+    "ToolResult",
+    "ToolResultMatchesAssertion",
+    "Transcript",
+    "Turn",
+    "TurnRecord",
+]

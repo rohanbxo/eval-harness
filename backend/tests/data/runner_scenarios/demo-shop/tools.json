@@ -1,0 +1,55 @@
+[
+  {
+    "name": "search_items",
+    "description": "Search the catalogue.",
+    "parameters": {
+      "type": "object",
+      "properties": { "query": { "type": "string" } },
+      "required": ["query"]
+    },
+    "mock": { "kind": "fixture", "file": "fixtures/search_items.json" }
+  },
+  {
+    "name": "get_details",
+    "description": "Details for one item, including refundability.",
+    "parameters": {
+      "type": "object",
+      "properties": { "item_id": { "type": "string" } },
+      "required": ["item_id"]
+    },
+    "mock": { "kind": "fixture", "file": "fixtures/get_details.json" }
+  },
+  {
+    "name": "buy_item",
+    "description": "Buy an item.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "item_id": { "type": "string" },
+        "buyer": { "type": "string" }
+      },
+      "required": ["item_id", "buyer"]
+    },
+    "mock": { "kind": "fixture", "file": "fixtures/buy_item.json" }
+  },
+  {
+    "name": "cancel_order",
+    "description": "Cancel an existing order.",
+    "parameters": {
+      "type": "object",
+      "properties": { "order_id": { "type": "string" } },
+      "required": ["order_id"]
+    },
+    "mock": { "kind": "fixture", "file": "fixtures/cancel_order.json" }
+  },
+  {
+    "name": "report",
+    "description": "Monthly revenue report.",
+    "parameters": {
+      "type": "object",
+      "properties": { "kind": { "type": "string" } },
+      "required": ["kind"]
+    },
+    "mock": { "kind": "fixture", "file": "fixtures/report.json" }
+  }
+]

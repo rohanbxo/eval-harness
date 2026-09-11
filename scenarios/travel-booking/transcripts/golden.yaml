@@ -1,0 +1,38 @@
+scenario: travel-booking
+description: >
+  Searches, checks the fare rules of the two cheapest fares plus the first refundable
+  one, then books FL-204 -- the cheapest fare that is actually refundable.
+expect_pass: true
+expect_all_axes_full: true
+turns:
+  - steps:
+      - content: "Let me look at Friday's Dubai to Riyadh options."
+        tool_calls:
+          - tool: search_flights
+            args:
+              origin: DXB
+              destination: RUH
+              date: "2026-03-06"
+              cabin: economy
+              passengers: 1
+      - content: "Prices alone do not tell me which fares are refundable, so I will check the conditions."
+        tool_calls:
+          - tool: get_fare_rules
+            args: {flight_id: "FL-101"}
+          - tool: get_fare_rules
+            args: {flight_id: "FL-150"}
+          - tool: get_fare_rules
+            args: {flight_id: "FL-204"}
+      - content: "FL-204 is the cheapest refundable option, so I will book it."
+        tool_calls:
+          - tool: book_flight
+            args:
+              flight_id: "FL-204"
+              passenger_name: "Alex Morgan"
+              passenger_email: "alex@example.test"
+      - content: >-
+          Booked. FL-101 (AED 520) and FL-150 (AED 580) are both non-refundable, so the
+          cheapest refundable fare is Najm Air NJ 219, flight FL-204, departing DXB at
+          15:20 on Friday 6 March and arriving RUH at 16:15. Total AED 610, fully
+          refundable up to two hours before departure. Your booking reference is BK-0001
+          and the itinerary has gone to alex@example.test.

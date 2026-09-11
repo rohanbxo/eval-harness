@@ -1,0 +1,21 @@
+{
+  "responses": [
+    {
+      "match": {"order_id": {"equals": "ORD-7781", "ci": true}},
+      "response": {
+        "order_id": "ORD-7781",
+        "customer": {"name": "Dana Whitfield", "email": "dana.whitfield@example.test", "since": "2021-04-11"},
+        "item": {"sku": "MF-AUD-4410", "name": "Larkspur A3 wireless over-ear headphones", "category": "electronics"},
+        "amount_aed": 349,
+        "currency": "AED",
+        "order_date": "2026-01-11",
+        "delivered_date": "2026-01-16",
+        "status": "delivered",
+        "payment_method": "card ending 4417",
+        "warranty": {"months": 12, "expires": "2027-01-16", "registered": true}
+      }
+    }
+  ],
+  "default": {"error": "not_found", "message": "No order with that reference."},
+  "default_ok": false
+}

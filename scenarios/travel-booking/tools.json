@@ -1,0 +1,60 @@
+[
+  {
+    "name": "search_flights",
+    "description": "Search available flights between two airports on a given date. Results list price and schedule only.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin": {"type": "string", "description": "Origin airport IATA code or city name, e.g. DXB."},
+        "destination": {"type": "string", "description": "Destination airport IATA code or city name, e.g. RUH."},
+        "date": {"type": "string", "description": "Departure date, ISO 8601 (YYYY-MM-DD)."},
+        "cabin": {"type": "string", "enum": ["economy", "premium_economy", "business", "first"], "description": "Cabin class. Defaults to economy."},
+        "passengers": {"type": "integer", "minimum": 1, "maximum": 9, "description": "Number of adult passengers. Defaults to 1."}
+      },
+      "required": ["origin", "destination", "date"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/search_flights.json"}
+  },
+  {
+    "name": "get_fare_rules",
+    "description": "Fetch the fare conditions for one flight: refundability, change fees and baggage.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_id": {"type": "string", "description": "Flight identifier returned by search_flights, e.g. FL-204."}
+      },
+      "required": ["flight_id"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/get_fare_rules.json"}
+  },
+  {
+    "name": "book_flight",
+    "description": "Book a flight for one passenger and return the booking reference.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "flight_id": {"type": "string", "description": "Flight identifier to book."},
+        "passenger_name": {"type": "string", "description": "Full name of the traveller."},
+        "passenger_email": {"type": "string", "description": "Email address for the itinerary."}
+      },
+      "required": ["flight_id", "passenger_name", "passenger_email"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/book_flight.json"}
+  },
+  {
+    "name": "cancel_booking",
+    "description": "Cancel an existing booking. Irreversible.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "booking_id": {"type": "string", "description": "Booking reference to cancel, e.g. BK-0001."}
+      },
+      "required": ["booking_id"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/cancel_booking.json"}
+  }
+]

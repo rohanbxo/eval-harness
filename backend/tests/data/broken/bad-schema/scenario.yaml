@@ -1,0 +1,13 @@
+id: bad-schema
+version: 1
+title: Deliberately broken scenario
+clock: "2026-03-02T09:00:00+04:00"
+system_prompt: |
+  You are a travel assistant.
+turns:
+  - user: "Find a flight."
+    assertions:
+      - id: searched
+        type: tool_called
+        axis: selection
+        tool: search_flights

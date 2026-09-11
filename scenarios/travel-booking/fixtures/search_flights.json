@@ -1,0 +1,71 @@
+{
+  "responses": [
+    {
+      "match": {
+        "origin": {"any_of": ["DXB", "Dubai", "Dubai International"], "ci": true},
+        "destination": {"any_of": ["RUH", "Riyadh", "King Khalid International"], "ci": true},
+        "date": {"date_equals": "2026-03-06"}
+      },
+      "response": {
+        "origin": "DXB",
+        "destination": "RUH",
+        "date": "2026-03-06",
+        "cabin": "economy",
+        "currency": "AED",
+        "flights": [
+          {
+            "flight_id": "FL-101",
+            "carrier": "Gulfstar Airways",
+            "flight_number": "GS 412",
+            "depart_local": "2026-03-06T07:15:00+04:00",
+            "arrive_local": "2026-03-06T08:05:00+03:00",
+            "duration_minutes": 110,
+            "stops": 0,
+            "cabin": "economy",
+            "price_aed": 520,
+            "seats_left": 6
+          },
+          {
+            "flight_id": "FL-150",
+            "carrier": "Gulfstar Airways",
+            "flight_number": "GS 448",
+            "depart_local": "2026-03-06T11:40:00+04:00",
+            "arrive_local": "2026-03-06T12:30:00+03:00",
+            "duration_minutes": 110,
+            "stops": 0,
+            "cabin": "economy",
+            "price_aed": 580,
+            "seats_left": 12
+          },
+          {
+            "flight_id": "FL-204",
+            "carrier": "Najm Air",
+            "flight_number": "NJ 219",
+            "depart_local": "2026-03-06T15:20:00+04:00",
+            "arrive_local": "2026-03-06T16:15:00+03:00",
+            "duration_minutes": 115,
+            "stops": 0,
+            "cabin": "economy",
+            "price_aed": 610,
+            "seats_left": 9
+          },
+          {
+            "flight_id": "FL-310",
+            "carrier": "Najm Air",
+            "flight_number": "NJ 277",
+            "depart_local": "2026-03-06T19:05:00+04:00",
+            "arrive_local": "2026-03-06T20:00:00+03:00",
+            "duration_minutes": 115,
+            "stops": 0,
+            "cabin": "economy",
+            "price_aed": 900,
+            "seats_left": 3
+          }
+        ],
+        "note": "Prices are per adult and include taxes. Fare conditions are not shown here; use get_fare_rules for a specific flight."
+      }
+    }
+  ],
+  "default": {"error": "no_flights", "message": "No flights found for that route and date."},
+  "default_ok": false
+}

@@ -1,0 +1,19 @@
+{
+  "responses": [
+    {
+      "match": {"title": {"exists": true}},
+      "response": {
+        "note_id": "NOTE-3312",
+        "title_saved": true,
+        "saved_at": "2026-03-02T09:00:00+04:00",
+        "notebook": "Research",
+        "message": "Note saved to Alex Morgan's Research notebook."
+      }
+    }
+  ],
+  "default": {
+    "error": "invalid_note",
+    "message": "A note needs both a title and content."
+  },
+  "default_ok": false
+}

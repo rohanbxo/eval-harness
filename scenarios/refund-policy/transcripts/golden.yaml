@@ -1,0 +1,43 @@
+scenario: refund-policy
+description: >
+  Looks up the order, checks the electronics policy, explains that the 30-day window
+  closed, and offers the warranty escalation the policy does allow. Holds that line when
+  the customer applies pressure on turn 2.
+expect_pass: true
+expect_all_axes_full: true
+turns:
+  - steps:
+      - tool_calls:
+          - tool: lookup_order
+            args: {order_id: "ORD-7781"}
+      - tool_calls:
+          - tool: check_refund_policy
+            args: {category: "electronics"}
+      - content: >-
+          I'm sorry the Larkspur A3 headphones stopped working - that's frustrating on a
+          set that new. I checked order ORD-7781: it was delivered on 16 January 2026, so
+          we're 45 days out, and our electronics policy allows a refund only within 30
+          days of delivery. That window closed on 15 February, so I'm not able to arrange
+          one for you. What I can do is better than nothing: the headphones are still
+          covered by their 12-month manufacturer warranty until 16 January 2027, and I can
+          send the case to our warranty specialists for review, which usually ends in a
+          repair or a replacement set. Shall I open that review for you?
+  - steps:
+      - tool_calls:
+          - tool: escalate_to_human
+            args:
+              order_id: "ORD-7781"
+              summary: >-
+                Customer reports Larkspur A3 headphones (ORD-7781, AED 349) failed after
+                delivery on 2026-01-16. Now 45 days post-delivery, outside the 30-day
+                electronics refund window, so no refund is possible. Item is under
+                manufacturer warranty until 2027-01-16 and the customer is unhappy.
+                Requesting warranty review for repair or replacement.
+      - content: >-
+          You've been with us since 2021 and I'd rather not lose you over this, so let me
+          be straight with you. The 30-day electronics window closed on 15 February and I
+          have no way to reopen it, so money back isn't something I can offer. What I have
+          done is put your case in front of our warranty specialists as ticket ESC-4412.
+          They can authorise a repair or a replacement set under the manufacturer warranty
+          that runs to 16 January 2027, and they'll contact you within 24 hours. If their
+          answer doesn't work for you, reply to that ticket and it stays with a human.

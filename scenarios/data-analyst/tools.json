@@ -1,0 +1,58 @@
+[
+  {
+    "name": "list_tables",
+    "description": "List the tables available in the warehouse.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "handler", "name": "sqlite_list_tables", "config": {"seed_file": "fixtures/seed.sql"}}
+  },
+  {
+    "name": "get_schema",
+    "description": "Return the column definitions for one table.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "table": {"type": "string", "description": "Table name, e.g. orders."}
+      },
+      "required": ["table"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "handler", "name": "sqlite_get_schema", "config": {"seed_file": "fixtures/seed.sql"}}
+  },
+  {
+    "name": "run_sql",
+    "description": "Run a read-only SQL query against the warehouse and return the rows. Only a single SELECT (optionally preceded by WITH) is accepted.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {"type": "string", "description": "A single SELECT statement."}
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "handler", "name": "sqlite_query", "config": {"seed_file": "fixtures/seed.sql"}}
+  },
+  {
+    "name": "create_chart",
+    "description": "Render a chart from rows the caller supplies and return its id.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "chart_type": {"type": "string", "enum": ["line", "bar", "stacked_bar", "pie"], "description": "Chart style."},
+        "title": {"type": "string", "description": "Chart title."},
+        "data": {
+          "type": "array",
+          "description": "Rows to plot, each an object of column name to value.",
+          "items": {"type": "object"}
+        }
+      },
+      "required": ["chart_type", "title", "data"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/create_chart.json"}
+  }
+]

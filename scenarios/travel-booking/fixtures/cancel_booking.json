@@ -1,0 +1,10 @@
+{
+  "responses": [
+    {
+      "match": {"booking_id": {"equals": "BK-0001"}},
+      "response": {"booking_id": "BK-0001", "status": "cancelled", "refund_aed": 0}
+    }
+  ],
+  "default": {"error": "not_found", "message": "No booking with that reference."},
+  "default_ok": false
+}

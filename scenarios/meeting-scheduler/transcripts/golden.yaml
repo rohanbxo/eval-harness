@@ -1,0 +1,63 @@
+scenario: meeting-scheduler
+description: >
+  Resolves the names, notices that "Sam" is ambiguous, and stops to ask instead of
+  booking. Once told which Sam, pulls all four calendars in one parallel batch and books
+  the single slot that actually works: Wed 2026-03-04 14:00-14:30 +04:00.
+expect_pass: true
+expect_all_axes_full: true
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_contacts
+            args: {query: "Sam"}
+          - tool: search_contacts
+            args: {query: "Priya"}
+          - tool: search_contacts
+            args: {query: "Omar"}
+      - content: >-
+          Priya Nair (Design) and Omar Haddad (Infrastructure) are unambiguous, but two
+          people match "Sam": Sam Carter, Staff Engineer in Engineering, and Sam Obi, an
+          Enterprise AE in Sales. Which one did you mean? I'll pull the calendars and
+          book the sync as soon as you confirm.
+  - steps:
+      - content: "Sam Carter it is. Checking all four calendars for the rest of the week."
+        tool_calls:
+          - tool: get_availability
+            args:
+              email: "sam.carter@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "priya.nair@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "omar.haddad@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+          - tool: get_availability
+            args:
+              email: "alex@acme.test"
+              start: "2026-03-02T09:00:00+04:00"
+              end: "2026-03-06T18:00:00+04:00"
+      - content: "Only one 30-minute window is clear for all four of you. Booking it."
+        tool_calls:
+          - tool: create_event
+            args:
+              title: "Sync: Alex, Sam Carter, Priya, Omar"
+              start: "2026-03-04T14:00:00+04:00"
+              end: "2026-03-04T14:30:00+04:00"
+              attendees:
+                - "sam.carter@acme.test"
+                - "priya.nair@acme.test"
+                - "omar.haddad@acme.test"
+              send_invites: true
+      - content: >-
+          Booked for Wednesday 4 March, 14:00-14:30 Dubai time, with Sam Carter, Priya
+          Nair and Omar Haddad; invitations have gone out and the event id is EV-3310.
+          For what it's worth that was the only 30-minute window all four of you had free
+          this week - Omar goes into a postmortem at 14:30 on Wednesday and Sam is in a
+          team retro until 13:30, so the slot is genuinely tight. If anyone needs to move
+          it, the next realistic option is next week.

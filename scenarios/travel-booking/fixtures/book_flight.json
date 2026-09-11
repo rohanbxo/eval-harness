@@ -1,0 +1,22 @@
+{
+  "responses": [
+    {
+      "match": {"flight_id": {"equals": "FL-101"}},
+      "response": {"booking_id": "BK-0001", "flight_id": "FL-101", "status": "confirmed", "total_aed": 520, "ticket_number": "217-4410099001"}
+    },
+    {
+      "match": {"flight_id": {"equals": "FL-150"}},
+      "response": {"booking_id": "BK-0001", "flight_id": "FL-150", "status": "confirmed", "total_aed": 580, "ticket_number": "217-4410099002"}
+    },
+    {
+      "match": {"flight_id": {"equals": "FL-204"}},
+      "response": {"booking_id": "BK-0001", "flight_id": "FL-204", "status": "confirmed", "total_aed": 610, "ticket_number": "217-4410099003"}
+    },
+    {
+      "match": {"flight_id": {"equals": "FL-310"}},
+      "response": {"booking_id": "BK-0001", "flight_id": "FL-310", "status": "confirmed", "total_aed": 900, "ticket_number": "217-4410099004"}
+    }
+  ],
+  "default": {"error": "not_found", "message": "No flight with that ID is available for booking."},
+  "default_ok": false
+}

@@ -1,0 +1,29 @@
+scenario: travel-booking
+description: >
+  Optimises for price alone: books the cheapest fare straight out of the search results
+  without ever checking whether it is refundable.
+expect_pass: false
+expect_failures:
+  - checked-cheaper-fares
+  - rules-before-booking
+  - booked-correct-flight
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_flights
+            args:
+              origin: DXB
+              destination: RUH
+              date: "2026-03-06"
+              cabin: economy
+              passengers: 1
+      - content: "The cheapest fare is FL-101, so I will take that one."
+        tool_calls:
+          - tool: book_flight
+            args:
+              flight_id: "FL-101"
+              passenger_name: "Alex Morgan"
+              passenger_email: "alex@example.test"
+      - content: >-
+          All set. I booked the cheapest Friday option: Gulfstar Airways GS 412, flight
+          FL-101, DXB 07:15 to RUH 08:05 on 6 March, AED 520. Your reference is BK-0001.

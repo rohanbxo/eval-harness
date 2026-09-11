@@ -1,0 +1,17 @@
+{
+  "responses": [
+    {
+      "match": {"order_id": {"equals": "ORD-7781", "ci": true}},
+      "response": {
+        "refund_id": "RF-2205",
+        "order_id": "ORD-7781",
+        "amount_aed": 349,
+        "status": "processed",
+        "settles_in_days": 5,
+        "destination": "card ending 4417"
+      }
+    }
+  ],
+  "default": {"error": "not_found", "message": "No order with that reference."},
+  "default_ok": false
+}

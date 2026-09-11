@@ -1,0 +1,68 @@
+scenario: data-analyst
+description: >
+  Recovers from the timeout correctly, but ignores the revenue definition in the system
+  prompt and sums every order regardless of status, on both the monthly and the regional
+  query. The totals are plausible-looking and wrong.
+expect_pass: false
+expect_failures:
+  - t1-monthly-revenue
+  - t2-region-revenue
+turns:
+  - steps:
+      - tool_calls:
+          - tool: list_tables
+            args: {}
+      - tool_calls:
+          - tool: get_schema
+            args: {table: "orders"}
+      - tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', order_date) AS month,
+                       SUM(amount_aed) AS revenue_aed
+                FROM orders
+                WHERE order_date >= '2025-01-01'
+                  AND order_date <= '2025-12-31'
+                GROUP BY month
+                ORDER BY month
+      - content: "Timed out; retrying the same query."
+        tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', order_date) AS month,
+                       SUM(amount_aed) AS revenue_aed
+                FROM orders
+                WHERE order_date >= '2025-01-01'
+                  AND order_date <= '2025-12-31'
+                GROUP BY month
+                ORDER BY month
+      - content: >-
+          2025 revenue by month: Jan 54,727; Feb 46,701; Mar 51,914; Apr 39,890; May
+          59,935; Jun 57,655; Jul 66,585; Aug 46,740; Sep 60,745; Oct 57,043; Nov 67,735;
+          Dec 42,711. Total AED 652,381 for the year, with November the strongest month.
+  - steps:
+      - tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', o.order_date) AS month,
+                       c.region AS region,
+                       SUM(o.amount_aed) AS revenue_aed
+                FROM orders o
+                JOIN customers c ON c.customer_id = o.customer_id
+                WHERE o.order_date >= '2025-01-01'
+                  AND o.order_date <= '2025-12-31'
+                GROUP BY month, region
+                ORDER BY month, region
+      - content: >-
+          Broken out by region across the 12 months of 2025, West is ahead for the year,
+          followed by South, North and East. The gap between the strongest and weakest
+          region is around 15%.
+  - steps:
+      - content: >-
+          An INNER JOIN returns only rows that match on both sides. A LEFT JOIN returns
+          every row from the left table and pads the right side with NULLs where there is
+          no match, which is what you want when the absence of a match is the thing you
+          are measuring.

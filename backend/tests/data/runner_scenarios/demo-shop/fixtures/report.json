@@ -1,0 +1,23 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {
+        "rows": [
+          {
+            "month": "2025-01",
+            "revenue_aed": 100.0
+          },
+          {
+            "month": "2025-02",
+            "revenue_aed": 250.5
+          }
+        ],
+        "truncated": false
+      }
+    }
+  ],
+  "default": {
+    "error": "no_report"
+  }
+}

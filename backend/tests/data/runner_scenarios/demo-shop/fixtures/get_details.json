@@ -1,0 +1,30 @@
+{
+  "responses": [
+    {
+      "match": {
+        "item_id": {
+          "equals": "IT-1"
+        }
+      },
+      "response": {
+        "item_id": "IT-1",
+        "refundable": false
+      }
+    },
+    {
+      "match": {
+        "item_id": {
+          "equals": "IT-2"
+        }
+      },
+      "response": {
+        "item_id": "IT-2",
+        "refundable": true
+      }
+    }
+  ],
+  "default": {
+    "error": "not_found",
+    "message": "No item with that id."
+  }
+}

@@ -1,0 +1,31 @@
+# Ideal behavior: search, check both items in one parallel batch, buy the
+# refundable one, retry the timed-out report, then answer a chat question
+# without touching a tool.
+scenario: demo-shop
+description: Ideal behavior. Every assertion passes and every axis scores 1.0.
+expect_pass: true
+expect_all_axes_full: true
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_items
+            args: {query: "refundable items"}
+      - tool_calls:
+          - tool: get_details
+            args: {item_id: "IT-1"}
+          - tool: get_details
+            args: {item_id: "IT-2"}
+      - tool_calls:
+          - tool: buy_item
+            args: {item_id: "IT-2", buyer: "alex@demo.test"}
+      - content: "Done - the steel bottle is refundable, so I bought it. Your order is OD-1."
+  - steps:
+      - tool_calls:
+          - tool: report
+            args: {kind: "monthly"}
+      - tool_calls:
+          - tool: report
+            args: {kind: "monthly"}
+      - content: "January came to 100 and February to 250.5."
+  - steps:
+      - content: "Refundable means you can return it for your money back. Anything else?"

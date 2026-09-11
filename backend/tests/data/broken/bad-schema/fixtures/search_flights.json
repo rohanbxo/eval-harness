@@ -1,0 +1,17 @@
+{
+  "responses": [
+    {
+      "match": {
+        "origin": {
+          "equals": "DXB"
+        }
+      },
+      "response": {
+        "flights": []
+      }
+    }
+  ],
+  "default": {
+    "error": "not_found"
+  }
+}

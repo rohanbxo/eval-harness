@@ -1,0 +1,66 @@
+# Model registry (SPEC 7). Adding a model requires only a new entry here.
+# `litellm_model` is any LiteLLM model string; keys come from the environment.
+models:
+  # --- FakeModel: scripted transcripts, no network. Used by tests and validate. ---
+  - key: fake
+    display_name: "FakeModel (scripted transcripts)"
+    litellm_model: "fake/transcript"
+    params: {}
+    supports_parallel_tool_calls: true
+    api_key_env: null
+    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+
+  # A second scripted key, so the leaderboard and compare views can be exercised
+  # with two models without touching a provider (SPEC 13, Phase 7).
+  - key: fake-b
+    display_name: "FakeModel B (scripted transcripts)"
+    litellm_model: "fake/transcript"
+    params: {}
+    supports_parallel_tool_calls: true
+    api_key_env: null
+    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+
+  # --- Anthropic ---
+  - key: opus-5
+    display_name: "Anthropic Claude Opus 5"
+    litellm_model: "anthropic/claude-opus-5"
+    params: {temperature: 0}
+    supports_parallel_tool_calls: true
+    api_key_env: ANTHROPIC_API_KEY
+
+  - key: sonnet-5
+    display_name: "Anthropic Claude Sonnet 5"
+    litellm_model: "anthropic/claude-sonnet-5"
+    params: {temperature: 0}
+    supports_parallel_tool_calls: true
+    api_key_env: ANTHROPIC_API_KEY
+
+  - key: haiku-4-5
+    display_name: "Anthropic Claude Haiku 4.5"
+    litellm_model: "anthropic/claude-haiku-4-5-20251001"
+    params: {temperature: 0}
+    supports_parallel_tool_calls: true
+    api_key_env: ANTHROPIC_API_KEY
+
+  # --- OpenAI ---
+  - key: gpt-4o
+    display_name: "OpenAI GPT-4o"
+    litellm_model: "openai/gpt-4o"
+    params: {temperature: 0}
+    supports_parallel_tool_calls: true
+    api_key_env: OPENAI_API_KEY
+
+  - key: gpt-4o-mini
+    display_name: "OpenAI GPT-4o mini"
+    litellm_model: "openai/gpt-4o-mini"
+    params: {temperature: 0}
+    supports_parallel_tool_calls: true
+    api_key_env: OPENAI_API_KEY
+
+  # --- Google ---
+  - key: gemini-2-flash
+    display_name: "Google Gemini 2.0 Flash"
+    litellm_model: "gemini/gemini-2.0-flash"
+    params: {temperature: 0}
+    supports_parallel_tool_calls: true
+    api_key_env: GEMINI_API_KEY

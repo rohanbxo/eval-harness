@@ -1,0 +1,17 @@
+{
+  "responses": [
+    {
+      "match": {"to": {"exists": true}},
+      "response": {
+        "message_id": "MSG-8841",
+        "status": "sent",
+        "sent_at": "2026-03-02T09:00:00+04:00"
+      }
+    }
+  ],
+  "default": {
+    "error": "invalid_recipient",
+    "message": "At least one recipient address is required."
+  },
+  "default_ok": false
+}

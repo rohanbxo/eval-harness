@@ -1,0 +1,10 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {"message_id": "MSG-8801", "status": "sent", "from": "alex@acme.test"}
+    }
+  ],
+  "default": {"error": "send_failed", "message": "The message could not be sent."},
+  "default_ok": false
+}

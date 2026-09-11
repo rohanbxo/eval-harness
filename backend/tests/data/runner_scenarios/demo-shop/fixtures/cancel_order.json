@@ -1,0 +1,13 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {
+        "cancelled": true
+      }
+    }
+  ],
+  "default": {
+    "error": "unknown_order"
+  }
+}

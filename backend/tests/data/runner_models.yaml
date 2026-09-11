@@ -1,0 +1,16 @@
+# Registry used by the CLI tests. No real provider is ever contacted.
+models:
+  - key: fake
+    display_name: "FakeModel (scripted transcripts)"
+    litellm_model: "fake/transcript"
+    api_key_env: null
+    pricing_override: {input_per_mtok: 0.0, output_per_mtok: 0.0}
+  - key: needs-key
+    display_name: "Model whose key is absent"
+    litellm_model: "openai/gpt-4o"
+    api_key_env: EVALHARNESS_TEST_KEY_THAT_IS_NEVER_SET
+  - key: no-tools
+    display_name: "Model without tool calling"
+    litellm_model: "openai/legacy"
+    supports_tool_calling: false
+    api_key_env: null

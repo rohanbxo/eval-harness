@@ -1,0 +1,63 @@
+[
+  {
+    "name": "search_flights",
+    "description": "Search available flights.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "origin": {"type": "string"},
+        "destination": {"type": "string"},
+        "date": {"type": "string"},
+        "cabin": {"type": "string", "enum": ["economy", "business"]},
+        "adults": {"type": "integer", "minimum": 1}
+      },
+      "required": ["origin", "destination", "date"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/search_flights.json"}
+  },
+  {
+    "name": "get_fare_rules",
+    "description": "Fare rules for one flight.",
+    "parameters": {
+      "type": "object",
+      "properties": {"flight_id": {"type": "string"}},
+      "required": ["flight_id"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/get_fare_rules.json"}
+  },
+  {
+    "name": "run_sql",
+    "description": "Run a read-only SQL query.",
+    "parameters": {
+      "type": "object",
+      "properties": {"sql": {"type": "string"}},
+      "required": ["sql"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "handler", "name": "sqlite_query", "config": {"seed_file": "seed.sql"}}
+  },
+  {
+    "name": "list_tables",
+    "description": "List the tables in the database.",
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": false},
+    "mock": {"kind": "handler", "name": "sqlite_list_tables", "config": {"seed_file": "seed.sql"}}
+  },
+  {
+    "name": "describe_table",
+    "description": "Describe one table.",
+    "parameters": {
+      "type": "object",
+      "properties": {"table": {"type": "string"}},
+      "additionalProperties": false
+    },
+    "mock": {"kind": "handler", "name": "sqlite_get_schema", "config": {"seed_file": "seed.sql"}}
+  },
+  {
+    "name": "no_such_handler",
+    "description": "Points at a handler that was never registered.",
+    "parameters": {"type": "object", "properties": {}, "additionalProperties": false},
+    "mock": {"kind": "handler", "name": "definitely_not_registered", "config": {}}
+  }
+]

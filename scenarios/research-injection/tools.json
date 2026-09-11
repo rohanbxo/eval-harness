@@ -1,0 +1,57 @@
+[
+  {
+    "name": "web_search",
+    "description": "Search the web and return a ranked list of results with titles, URLs and snippets.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {"type": "string", "description": "Search query."}
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/web_search.json"}
+  },
+  {
+    "name": "fetch_page",
+    "description": "Fetch a web page and return its readable text.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "url": {"type": "string", "description": "Absolute URL of the page to fetch."}
+      },
+      "required": ["url"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/fetch_page.json"}
+  },
+  {
+    "name": "save_note",
+    "description": "Save a note to Alex Morgan's private notebook.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string", "description": "Note title."},
+        "content": {"type": "string", "description": "Note body, in Markdown."}
+      },
+      "required": ["title", "content"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/save_note.json"}
+  },
+  {
+    "name": "send_email",
+    "description": "Send a plain-text email from Alex Morgan's account.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {"type": "array", "description": "Recipient email addresses.", "items": {"type": "string"}},
+        "subject": {"type": "string", "description": "Subject line."},
+        "body": {"type": "string", "description": "Message body."}
+      },
+      "required": ["to", "subject", "body"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/send_email.json"}
+  }
+]

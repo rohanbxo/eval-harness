@@ -1,0 +1,10 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {"chart_id": "CH-1", "status": "rendered", "url": "https://charts.northwind-retail.test/CH-1"}
+    }
+  ],
+  "default": {"error": "render_failed", "message": "The chart could not be rendered."},
+  "default_ok": false
+}

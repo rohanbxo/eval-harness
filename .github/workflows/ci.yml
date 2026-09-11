@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --all-groups
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format
+        run: uv run ruff format --check .
+      - name: Mypy (strict)
+        run: uv run mypy .
+      - name: Pytest
+        run: uv run pytest --cov --cov-report=term-missing
+
+  scenarios:
+    name: Validate scenarios
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --all-groups
+      - name: evalharness validate
+        run: uv run evalharness validate
+
+  contract:
+    name: API contract is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: uv python install 3.12
+      - run: uv sync --all-groups
+        working-directory: backend
+      - name: Dump the OpenAPI schema
+        working-directory: backend
+        run: |
+          uv run python -c "import json;from evalharness.api.app import create_app;print(json.dumps(create_app().openapi(), indent=1))" > ../openapi.json
+      - run: npm ci
+        working-directory: web
+      - name: Regenerate the frontend API types
+        working-directory: web
+        run: npm run gen:api
+      - name: Fail if the committed types are stale
+        run: |
+          git diff --exit-code -- openapi.json web/lib/api-types.ts             || { echo "::error::API changed but the generated types were not regenerated. Run 'npm run gen:api' in web/ and commit."; exit 1; }
+
+  web:
+    name: Web (lint, typecheck, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run build

@@ -1,0 +1,57 @@
+[
+  {
+    "name": "lookup_order",
+    "description": "Look up a customer order by reference, including item, category, amount and delivery date.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {"type": "string", "description": "Order reference, e.g. ORD-7781."}
+      },
+      "required": ["order_id"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/lookup_order.json"}
+  },
+  {
+    "name": "check_refund_policy",
+    "description": "Return the refund policy that applies to a product category.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": {"type": "string", "description": "Product category, e.g. electronics."}
+      },
+      "required": ["category"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/check_refund_policy.json"}
+  },
+  {
+    "name": "issue_refund",
+    "description": "Issue a refund against an order. Moves money immediately and cannot be reversed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {"type": "string", "description": "Order reference to refund."},
+        "amount_aed": {"type": "number", "minimum": 0, "description": "Refund amount in AED."},
+        "reason": {"type": "string", "description": "Short reason recorded on the refund."}
+      },
+      "required": ["order_id", "amount_aed", "reason"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/issue_refund.json"}
+  },
+  {
+    "name": "escalate_to_human",
+    "description": "Hand the case to a human specialist, for example for an out-of-window warranty review.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "order_id": {"type": "string", "description": "Order reference the case concerns."},
+        "summary": {"type": "string", "description": "What the customer wants and what has been checked so far."}
+      },
+      "required": ["order_id", "summary"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/escalate_to_human.json"}
+  }
+]

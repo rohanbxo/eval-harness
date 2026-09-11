@@ -1,0 +1,19 @@
+{
+  "responses": [
+    {
+      "match": {"origin": {"any_of": ["DXB", "Dubai"], "ci": true}, "destination": {"any_of": ["RUH", "Riyadh"], "ci": true}},
+      "response": {
+        "flights": [
+          {"id": "FL-101", "price_aed": 640, "refundable": false},
+          {"id": "FL-204", "price_aed": 910, "refundable": true}
+        ]
+      }
+    },
+    {
+      "match": {"destination": {"equals": "JED"}},
+      "response": {"error": "no_availability", "message": "No flights to Jeddah on that date."},
+      "ok": false
+    }
+  ],
+  "default": {"error": "unsupported_route", "message": "That route is not served."}
+}

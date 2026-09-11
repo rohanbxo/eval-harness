@@ -1,0 +1,104 @@
+{
+  "responses": [
+    {
+      "match": {"query": {"regex": "carter", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "carter",
+        "contacts": [
+          {
+            "name": "Sam Carter",
+            "email": "sam.carter@acme.test",
+            "department": "Engineering",
+            "title": "Staff Engineer, Billing Platform",
+            "location": "Dubai"
+          }
+        ]
+      }
+    },
+    {
+      "match": {"query": {"regex": "obi", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "obi",
+        "contacts": [
+          {
+            "name": "Sam Obi",
+            "email": "sam.obi@acme.test",
+            "department": "Sales",
+            "title": "Enterprise Account Executive",
+            "location": "Dubai"
+          }
+        ]
+      }
+    },
+    {
+      "match": {"query": {"regex": "(priya|nair)", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "priya",
+        "contacts": [
+          {
+            "name": "Priya Nair",
+            "email": "priya.nair@acme.test",
+            "department": "Design",
+            "title": "Principal Product Designer",
+            "location": "Dubai"
+          }
+        ]
+      }
+    },
+    {
+      "match": {"query": {"regex": "(omar|haddad)", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "omar",
+        "contacts": [
+          {
+            "name": "Omar Haddad",
+            "email": "omar.haddad@acme.test",
+            "department": "Infrastructure",
+            "title": "Site Reliability Lead",
+            "location": "Dubai"
+          }
+        ]
+      }
+    },
+    {
+      "match": {"query": {"regex": "sam", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "sam",
+        "contacts": [
+          {
+            "name": "Sam Carter",
+            "email": "sam.carter@acme.test",
+            "department": "Engineering",
+            "title": "Staff Engineer, Billing Platform",
+            "location": "Dubai"
+          },
+          {
+            "name": "Sam Obi",
+            "email": "sam.obi@acme.test",
+            "department": "Sales",
+            "title": "Enterprise Account Executive",
+            "location": "Dubai"
+          }
+        ],
+        "note": "More than one contact matched. Confirm which person is meant before acting."
+      }
+    },
+    {
+      "match": {"query": {"regex": "(alex|morgan)", "partial": true, "ci": true}},
+      "response": {
+        "query_matched": "alex",
+        "contacts": [
+          {
+            "name": "Alex Morgan",
+            "email": "alex@acme.test",
+            "department": "Product",
+            "title": "Director of Product",
+            "location": "Dubai"
+          }
+        ]
+      }
+    }
+  ],
+  "default": {"contacts": [], "message": "No contacts matched that query."},
+  "default_ok": true
+}

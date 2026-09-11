@@ -1,0 +1,24 @@
+# Buys the first thing it finds without checking refundability.
+scenario: demo-shop
+description: Skips the detail lookups and buys the cheapest item instead of the refundable one.
+expect_pass: false
+expect_failures: [parallel-details, details-before-buy, bought-right]
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_items
+            args: {query: "items"}
+      - tool_calls:
+          - tool: buy_item
+            args: {item_id: "IT-1", buyer: "alex@demo.test"}
+      - content: "Bought the blue mug for you. Your order is OD-1."
+  - steps:
+      - tool_calls:
+          - tool: report
+            args: {kind: "monthly"}
+      - tool_calls:
+          - tool: report
+            args: {kind: "monthly"}
+      - content: "January came to 100 and February to 250.5."
+  - steps:
+      - content: "Refundable means you can return it for your money back. Anything else?"

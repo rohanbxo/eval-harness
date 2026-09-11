@@ -1,0 +1,90 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-evalharness}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-evalharness}
+      POSTGRES_DB: ${POSTGRES_DB:-evalharness}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evalharness}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn evalharness.api.app:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-evalharness}:${POSTGRES_PASSWORD:-evalharness}@postgres:5432/${POSTGRES_DB:-evalharness}
+      REDIS_URL: redis://redis:6379/0
+      EVALHARNESS_SCENARIOS_DIR: /app/scenarios
+      EVALHARNESS_MODELS_FILE: /app/config/models.yaml
+    env_file: [.env]
+    ports: ["${API_PORT:-8000}:8000"]
+    volumes:
+      - ./backend:/app/backend
+      - ./scenarios:/app/scenarios
+      - ./config:/app/config
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A evalharness.worker.app worker --loglevel=INFO --concurrency=4
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-evalharness}:${POSTGRES_PASSWORD:-evalharness}@postgres:5432/${POSTGRES_DB:-evalharness}
+      REDIS_URL: redis://redis:6379/0
+      EVALHARNESS_SCENARIOS_DIR: /app/scenarios
+      EVALHARNESS_MODELS_FILE: /app/config/models.yaml
+    env_file: [.env]
+    volumes:
+      - ./backend:/app/backend
+      - ./scenarios:/app/scenarios
+      - ./config:/app/config
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    command: npm run dev
+    environment:
+      # Server components call the API over the compose network; the browser uses localhost.
+      API_BASE_URL: http://api:8000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports: ["${WEB_PORT:-3000}:3000"]
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      api: {condition: service_started}
+
+volumes:
+  pgdata:

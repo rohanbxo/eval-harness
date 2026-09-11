@@ -1,0 +1,62 @@
+scenario: data-analyst
+description: >
+  Treats the QueryTimeout as a dead end and reports failure instead of re-running the
+  statement, so turn 1 never produces a result. It does query successfully on turn 2,
+  which keeps the failure isolated to the recovery and turn-1 value assertions.
+expect_pass: false
+expect_failures:
+  - t1-recovered
+  - t1-monthly-revenue
+turns:
+  - steps:
+      - tool_calls:
+          - tool: list_tables
+            args: {}
+      - tool_calls:
+          - tool: get_schema
+            args: {table: "orders"}
+      - tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', order_date) AS month,
+                       SUM(amount_aed) AS revenue_aed
+                FROM orders
+                WHERE status = 'completed'
+                  AND order_date >= '2025-01-01'
+                  AND order_date <= '2025-12-31'
+                GROUP BY month
+                ORDER BY month
+      - content: >-
+          I wasn't able to get you the 2025 monthly revenue: the query hit a five-second
+          statement timeout on the warehouse. The aggregation over a full year of orders
+          looks too heavy for the current connection, so I'd suggest asking your data
+          platform team to raise the timeout, or narrowing the question to one quarter at
+          a time. Let me know how you'd like to proceed.
+  - steps:
+      - tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', o.order_date) AS month,
+                       c.region AS region,
+                       SUM(o.amount_aed) AS revenue_aed
+                FROM orders o
+                JOIN customers c ON c.customer_id = o.customer_id
+                WHERE o.status = 'completed'
+                  AND o.order_date >= '2025-01-01'
+                  AND o.order_date <= '2025-12-31'
+                GROUP BY month, region
+                ORDER BY month, region
+      - content: >-
+          That one came back. Here is 2025 by month and region, completed orders only:
+          48 totals in all. For the year West leads on AED 150,521, then South on
+          146,846, North on 143,478 and East on 131,192. Summing across regions also
+          gives you the monthly figures the earlier query never returned - AED 572,037
+          for 2025 in total.
+  - steps:
+      - content: >-
+          INNER JOIN returns only the rows where the join keys match on both sides.
+          LEFT JOIN returns every row from the left table and fills the right-hand
+          columns with NULL when nothing matches, so it is the one to reach for when you
+          need to see the rows that have no counterpart.

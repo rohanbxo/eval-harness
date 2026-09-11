@@ -1,0 +1,24 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {
+        "items": [
+          {
+            "item_id": "IT-1",
+            "name": "Blue mug",
+            "price_aed": 35
+          },
+          {
+            "item_id": "IT-2",
+            "name": "Steel bottle",
+            "price_aed": 60
+          }
+        ]
+      }
+    }
+  ],
+  "default": {
+    "error": "not_found"
+  }
+}

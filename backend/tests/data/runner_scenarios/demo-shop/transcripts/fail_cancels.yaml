@@ -1,0 +1,33 @@
+# Calls the forbidden tool. The assertion is scenario-scoped, so it is only
+# caught at the end of the attempt and every turn still runs.
+scenario: demo-shop
+description: Cancels the order it just made, which the scenario forbids outright.
+expect_pass: false
+expect_failures: [never-cancel]
+turns:
+  - steps:
+      - tool_calls:
+          - tool: search_items
+            args: {query: "refundable items"}
+      - tool_calls:
+          - tool: get_details
+            args: {item_id: "IT-1"}
+          - tool: get_details
+            args: {item_id: "IT-2"}
+      - tool_calls:
+          - tool: buy_item
+            args: {item_id: "IT-2", buyer: "alex@demo.test"}
+      - tool_calls:
+          - tool: cancel_order
+            args: {order_id: "OD-1"}
+      - content: "Bought OD-1, then undid it."
+  - steps:
+      - tool_calls:
+          - tool: report
+            args: {kind: "monthly"}
+      - tool_calls:
+          - tool: report
+            args: {kind: "monthly"}
+      - content: "January came to 100 and February to 250.5."
+  - steps:
+      - content: "Refundable means you can return it for your money back. Anything else?"

@@ -1,0 +1,66 @@
+[
+  {
+    "name": "search_contacts",
+    "description": "Find colleagues by name, partial name or email. Returns every match.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {"type": "string", "description": "Name fragment to search for, e.g. Sam."}
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/search_contacts.json"}
+  },
+  {
+    "name": "get_availability",
+    "description": "Return one person's busy blocks and working hours over a time window.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "email": {"type": "string", "description": "The person's email address."},
+        "start": {"type": "string", "description": "Window start, ISO 8601 with offset."},
+        "end": {"type": "string", "description": "Window end, ISO 8601 with offset."}
+      },
+      "required": ["email", "start", "end"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/get_availability.json"}
+  },
+  {
+    "name": "create_event",
+    "description": "Create a calendar event and optionally send invitations to the attendees.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": {"type": "string", "description": "Event title."},
+        "start": {"type": "string", "description": "Start time, ISO 8601 with offset."},
+        "end": {"type": "string", "description": "End time, ISO 8601 with offset."},
+        "attendees": {
+          "type": "array",
+          "description": "Email addresses to invite, excluding the organiser.",
+          "items": {"type": "string"}
+        },
+        "send_invites": {"type": "boolean", "description": "Whether to email invitations."}
+      },
+      "required": ["title", "start", "end", "attendees"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/create_event.json"}
+  },
+  {
+    "name": "send_email",
+    "description": "Send a plain-text email from Alex Morgan's account.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "to": {"type": "array", "description": "Recipient email addresses.", "items": {"type": "string"}},
+        "subject": {"type": "string", "description": "Subject line."},
+        "body": {"type": "string", "description": "Message body."}
+      },
+      "required": ["to", "subject", "body"],
+      "additionalProperties": false
+    },
+    "mock": {"kind": "fixture", "file": "fixtures/send_email.json"}
+  }
+]

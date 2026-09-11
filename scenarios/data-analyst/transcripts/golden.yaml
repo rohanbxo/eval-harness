@@ -1,0 +1,82 @@
+scenario: data-analyst
+description: >
+  Inspects the schema, hits the injected QueryTimeout on the first run_sql call, retries
+  the same query and gets the right 12 monthly totals. Turn 2 carries 2025 and the
+  completed-only definition forward and joins customers for the region split. Turn 3 is
+  answered from knowledge, with no tool calls.
+expect_pass: true
+expect_all_axes_full: true
+turns:
+  - steps:
+      - tool_calls:
+          - tool: list_tables
+            args: {}
+      - content: "orders_archive is pre-2024, so 2025 revenue lives in orders. Checking the columns."
+        tool_calls:
+          - tool: get_schema
+            args: {table: "orders"}
+          - tool: get_schema
+            args: {table: "customers"}
+      - tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', order_date) AS month,
+                       SUM(amount_aed) AS revenue_aed
+                FROM orders
+                WHERE status = 'completed'
+                  AND order_date >= '2025-01-01'
+                  AND order_date <= '2025-12-31'
+                GROUP BY month
+                ORDER BY month
+      - content: "That timed out rather than failed, so the same query should work on a retry."
+        tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', order_date) AS month,
+                       SUM(amount_aed) AS revenue_aed
+                FROM orders
+                WHERE status = 'completed'
+                  AND order_date >= '2025-01-01'
+                  AND order_date <= '2025-12-31'
+                GROUP BY month
+                ORDER BY month
+      - content: >-
+          Here is 2025 revenue by month, counting completed orders only and excluding the
+          pre-2024 archive table. Jan 47,805; Feb 41,366; Mar 43,831; Apr 35,745; May
+          55,711; Jun 49,939; Jul 61,067; Aug 41,688; Sep 50,560; Oct 51,400; Nov 58,806;
+          Dec 34,119. That is AED 572,037 for the year. July was the strongest month and
+          December the weakest; the first query timed out and I re-ran it unchanged.
+  - steps:
+      - tool_calls:
+          - tool: run_sql
+            args:
+              query: |-
+                SELECT strftime('%Y-%m', o.order_date) AS month,
+                       c.region AS region,
+                       SUM(o.amount_aed) AS revenue_aed
+                FROM orders o
+                JOIN customers c ON c.customer_id = o.customer_id
+                WHERE o.status = 'completed'
+                  AND o.order_date >= '2025-01-01'
+                  AND o.order_date <= '2025-12-31'
+                GROUP BY month, region
+                ORDER BY month, region
+      - content: >-
+          Same definition, now split four ways: 48 month-by-region totals for 2025. For
+          the year, West leads on AED 150,521, then South on 146,846, North on 143,478
+          and East on 131,192 - a spread of under 15%, so no region is carrying the year.
+          The single strongest cell is North in July at 20,313, which is most of why July
+          tops the monthly figures.
+  - steps:
+      - content: >-
+          An INNER JOIN keeps only the rows where the join condition matches on both
+          sides, so unmatched rows from either table disappear. A LEFT JOIN keeps every
+          row from the left table regardless, and fills the right table's columns with
+          NULL where there is no match. Practically: use INNER JOIN when a missing match
+          means the row is irrelevant, and LEFT JOIN when the absence is itself the
+          answer - customers with no orders, orders with no shipment, and so on. One
+          trap: putting a condition on the right table in the WHERE clause of a LEFT JOIN
+          throws away the NULL rows and quietly turns it back into an inner join. Put
+          that condition in the ON clause instead.

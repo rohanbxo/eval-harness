@@ -1,0 +1,16 @@
+{
+  "responses": [
+    {
+      "match": {"order_id": {"equals": "ORD-7781", "ci": true}},
+      "response": {
+        "ticket_id": "ESC-4412",
+        "order_id": "ORD-7781",
+        "queue": "warranty_review",
+        "status": "queued",
+        "response_within_hours": 24
+      }
+    }
+  ],
+  "default": {"error": "not_found", "message": "No order with that reference."},
+  "default_ok": false
+}

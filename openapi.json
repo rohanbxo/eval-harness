@@ -1,0 +1,3759 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "EvalHarness API",
+  "description": "Runs agentic tool-use scenarios against any LiteLLM-supported model and grades them deterministically.",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/health": {
+   "get": {
+    "tags": [
+     "system"
+    ],
+    "summary": "Health",
+    "description": "Report process health, plus whether the database answers.\n\nThe endpoint stays 200 even when Postgres is down: compose starts the API\nbefore migrations have necessarily settled, and a health check that fails\nthen would take the container down for a recoverable condition.",
+    "operationId": "getHealth",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/scenarios": {
+   "get": {
+    "tags": [
+     "scenarios"
+    ],
+    "summary": "List scenarios with their validation status",
+    "operationId": "listScenarios",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ScenarioListResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/scenarios/{scenario_id}": {
+   "get": {
+    "tags": [
+     "scenarios"
+    ],
+    "summary": "Full scenario definition, tools and fixtures",
+    "operationId": "getScenario",
+    "parameters": [
+     {
+      "name": "scenario_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Scenario Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ScenarioDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/models": {
+   "get": {
+    "tags": [
+     "models"
+    ],
+    "summary": "Model registry, flagged with API key availability",
+    "operationId": "listModels",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ModelListResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs": {
+   "post": {
+    "tags": [
+     "runs"
+    ],
+    "summary": "Create a run and queue it for execution",
+    "operationId": "createRun",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RunCreate"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "get": {
+    "tags": [
+     "runs"
+    ],
+    "summary": "Paginated runs, filterable by model and status",
+    "operationId": "listRuns",
+    "parameters": [
+     {
+      "name": "model_key",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Model Key"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/RunStatus"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Status"
+      }
+     },
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 200,
+       "minimum": 1,
+       "default": 25,
+       "title": "Limit"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 0,
+       "default": 0,
+       "title": "Offset"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunListResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run_id}": {
+   "get": {
+    "tags": [
+     "runs"
+    ],
+    "summary": "One run with its attempts and summary",
+    "operationId": "getRun",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/RunDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run_id}/cancel": {
+   "post": {
+    "tags": [
+     "runs"
+    ],
+    "summary": "Cancel a queued or running run",
+    "description": "Set the cancellation flag that attempts check between model calls.\n\nThe flag lives in two places on purpose: Redis, which a running attempt polls\ncheaply, and the run's status in Postgres, which is authoritative and\nsurvives a Redis restart.",
+    "operationId": "cancelRun",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CancelResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/runs/{run_id}/stream": {
+   "get": {
+    "tags": [
+     "runs"
+    ],
+    "summary": "Server-Sent Events: attempt started/finished, run completed",
+    "operationId": "streamRun",
+    "parameters": [
+     {
+      "name": "run_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Run Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "A text/event-stream whose data frames are ProgressEvent JSON.",
+      "content": {
+       "text/event-stream": {},
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ProgressEvent"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/attempts/{attempt_id}": {
+   "get": {
+    "tags": [
+     "attempts"
+    ],
+    "summary": "Full trace: turns, ordered events and assertion results",
+    "operationId": "getAttempt",
+    "parameters": [
+     {
+      "name": "attempt_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Attempt Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AttemptTrace"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/leaderboard": {
+   "get": {
+    "tags": [
+     "leaderboard"
+    ],
+    "summary": "Per model x scenario: pass@1, pass^k, axis scores, cost and latency",
+    "operationId": "getLeaderboard",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/LeaderboardResponse"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/compare": {
+   "get": {
+    "tags": [
+     "leaderboard"
+    ],
+    "summary": "Side-by-side summary, per-scenario diffs and assertions that flipped",
+    "operationId": "compareRuns",
+    "parameters": [
+     {
+      "name": "run_a",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "description": "Baseline run id.",
+       "title": "Run A"
+      },
+      "description": "Baseline run id."
+     },
+     {
+      "name": "run_b",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "description": "Run to compare against the baseline.",
+       "title": "Run B"
+      },
+      "description": "Run to compare against the baseline."
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CompareResponse"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "ArgsNotContainsAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "args_not_contains",
+      "title": "Type",
+      "default": "args_not_contains"
+     },
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     },
+     "pattern": {
+      "type": "string",
+      "title": "Pattern"
+     },
+     "ci": {
+      "type": "boolean",
+      "title": "Ci",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "tool",
+     "pattern"
+    ],
+    "title": "ArgsNotContainsAssertion",
+    "description": "No call to ``tool`` contains ``pattern`` in any string argument (deep)."
+   },
+   "AssertionFlip": {
+    "properties": {
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "assertion_id": {
+      "type": "string",
+      "title": "Assertion Id"
+     },
+     "type": {
+      "type": "string",
+      "title": "Type",
+      "default": ""
+     },
+     "axis": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Axis"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "severity": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Severity"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "pass_rate_a": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass Rate A"
+     },
+     "pass_rate_b": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass Rate B"
+     },
+     "direction": {
+      "type": "string",
+      "enum": [
+       "fixed",
+       "broken",
+       "improved",
+       "regressed",
+       "added",
+       "removed"
+      ],
+      "title": "Direction"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scenario_id",
+     "assertion_id",
+     "direction"
+    ],
+    "title": "AssertionFlip",
+    "description": "An assertion whose outcome moved between the two runs."
+   },
+   "AssertionResultOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "attempt_id": {
+      "type": "string",
+      "title": "Attempt Id"
+     },
+     "turn_index": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Turn Index"
+     },
+     "assertion_id": {
+      "type": "string",
+      "title": "Assertion Id"
+     },
+     "type": {
+      "type": "string",
+      "title": "Type"
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity"
+     },
+     "passed": {
+      "type": "boolean",
+      "title": "Passed"
+     },
+     "reason": {
+      "type": "string",
+      "title": "Reason",
+      "default": ""
+     },
+     "details": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Details"
+     },
+     "non_deterministic": {
+      "type": "boolean",
+      "title": "Non Deterministic",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "attempt_id",
+     "assertion_id",
+     "type",
+     "axis",
+     "severity",
+     "passed"
+    ],
+    "title": "AssertionResultOut"
+   },
+   "AttemptStatus": {
+    "type": "string",
+    "enum": [
+     "queued",
+     "running",
+     "completed",
+     "failed",
+     "cancelled"
+    ],
+    "title": "AttemptStatus"
+   },
+   "AttemptSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "repetition": {
+      "type": "integer",
+      "title": "Repetition"
+     },
+     "status": {
+      "$ref": "#/components/schemas/AttemptStatus"
+     },
+     "passed": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Passed"
+     },
+     "critical_failure": {
+      "type": "boolean",
+      "title": "Critical Failure",
+      "default": false
+     },
+     "axis_scores": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores"
+     },
+     "cost_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd"
+     },
+     "input_tokens": {
+      "type": "integer",
+      "title": "Input Tokens",
+      "default": 0
+     },
+     "output_tokens": {
+      "type": "integer",
+      "title": "Output Tokens",
+      "default": 0
+     },
+     "duration_ms": {
+      "type": "integer",
+      "title": "Duration Ms",
+      "default": 0
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "run_id",
+     "scenario_id",
+     "repetition",
+     "status"
+    ],
+    "title": "AttemptSummary"
+   },
+   "AttemptTrace": {
+    "properties": {
+     "attempt": {
+      "$ref": "#/components/schemas/AttemptSummary"
+     },
+     "run": {
+      "$ref": "#/components/schemas/Run"
+     },
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "scenario_title": {
+      "type": "string",
+      "title": "Scenario Title",
+      "default": ""
+     },
+     "config_hash": {
+      "type": "string",
+      "title": "Config Hash",
+      "default": ""
+     },
+     "turns": {
+      "items": {
+       "$ref": "#/components/schemas/TurnOut"
+      },
+      "type": "array",
+      "title": "Turns"
+     },
+     "events": {
+      "items": {
+       "$ref": "#/components/schemas/EventOut"
+      },
+      "type": "array",
+      "title": "Events"
+     },
+     "assertion_results": {
+      "items": {
+       "$ref": "#/components/schemas/AssertionResultOut"
+      },
+      "type": "array",
+      "title": "Assertion Results"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "attempt",
+     "run",
+     "scenario_id"
+    ],
+    "title": "AttemptTrace",
+    "description": "Everything the trace viewer needs for one attempt (SPEC 10.1)."
+   },
+   "Axis": {
+    "type": "string",
+    "enum": [
+     "selection",
+     "arguments",
+     "ordering",
+     "restraint",
+     "recovery",
+     "state",
+     "clarification",
+     "safety"
+    ],
+    "title": "Axis",
+    "description": "Capability dimension an assertion measures. Fixed set -- SPEC 4.3."
+   },
+   "CallSelector": {
+    "properties": {
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     },
+     "args": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/Matcher"
+      },
+      "type": "object",
+      "title": "Args"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tool"
+    ],
+    "title": "CallSelector",
+    "description": "Selects tool calls by name and (optionally) argument matchers."
+   },
+   "CancelResponse": {
+    "properties": {
+     "run": {
+      "$ref": "#/components/schemas/RunDetail"
+     },
+     "cancelled_attempts": {
+      "type": "integer",
+      "title": "Cancelled Attempts",
+      "default": 0
+     },
+     "already_terminal": {
+      "type": "boolean",
+      "title": "Already Terminal",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "run"
+    ],
+    "title": "CancelResponse"
+   },
+   "ClarificationAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "clarification",
+      "title": "Type",
+      "default": "clarification"
+     },
+     "blocked_tools": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Blocked Tools"
+     },
+     "question_pattern": {
+      "type": "string",
+      "title": "Question Pattern",
+      "description": "Heuristic for 'asks the user something'. Default: contains a question mark.",
+      "default": "\\?"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis"
+    ],
+    "title": "ClarificationAssertion",
+    "description": "No blocked tools were called and the final message asks a question."
+   },
+   "CompareResponse": {
+    "properties": {
+     "run_a": {
+      "$ref": "#/components/schemas/Run"
+     },
+     "run_b": {
+      "$ref": "#/components/schemas/Run"
+     },
+     "scenarios": {
+      "items": {
+       "$ref": "#/components/schemas/ScenarioDiff"
+      },
+      "type": "array",
+      "title": "Scenarios"
+     },
+     "flipped_assertions": {
+      "items": {
+       "$ref": "#/components/schemas/AssertionFlip"
+      },
+      "type": "array",
+      "title": "Flipped Assertions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "run_a",
+     "run_b"
+    ],
+    "title": "CompareResponse"
+   },
+   "CountConstraint": {
+    "properties": {
+     "exactly": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exactly"
+     },
+     "min": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Min"
+     },
+     "max": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "minimum": 0.0
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Max"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "CountConstraint",
+    "description": "Constrains how many calls matched (SPEC 4.3, ``tool_called``)."
+   },
+   "EventOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "attempt_id": {
+      "type": "string",
+      "title": "Attempt Id"
+     },
+     "turn_index": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Turn Index"
+     },
+     "seq": {
+      "type": "integer",
+      "title": "Seq"
+     },
+     "type": {
+      "$ref": "#/components/schemas/EventType"
+     },
+     "payload": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Payload"
+     },
+     "latency_ms": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency Ms"
+     },
+     "input_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Input Tokens"
+     },
+     "output_tokens": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Output Tokens"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "attempt_id",
+     "seq",
+     "type",
+     "created_at"
+    ],
+    "title": "EventOut"
+   },
+   "EventType": {
+    "type": "string",
+    "enum": [
+     "system",
+     "user_message",
+     "model_request",
+     "model_response",
+     "tool_call",
+     "tool_result",
+     "fault",
+     "retry",
+     "limit_exceeded",
+     "error"
+    ],
+    "title": "EventType",
+    "description": "Ordered audit-trail event kinds (SPEC 8.3)."
+   },
+   "Fault": {
+    "properties": {
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     },
+     "on_call": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "On Call",
+      "description": "1-indexed call count for this tool within the attempt."
+     },
+     "response": {
+      "$ref": "#/components/schemas/JsonValue"
+     },
+     "ok": {
+      "type": "boolean",
+      "title": "Ok",
+      "description": "Fault responses count as errors by default.",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "tool",
+     "on_call",
+     "response"
+    ],
+    "title": "Fault",
+    "description": "A scripted tool failure injected on a specific call (SPEC 5.4)."
+   },
+   "FixtureFile": {
+    "properties": {
+     "responses": {
+      "items": {
+       "$ref": "#/components/schemas/FixtureResponse"
+      },
+      "type": "array",
+      "title": "Responses"
+     },
+     "default": {
+      "$ref": "#/components/schemas/JsonValue"
+     },
+     "default_ok": {
+      "type": "boolean",
+      "title": "Default Ok",
+      "description": "Whether the fallback response counts as success. Defaults to error.",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "FixtureFile",
+    "description": "Contents of a fixture file referenced by ``FixtureMock.file``."
+   },
+   "FixtureMock": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "fixture",
+      "title": "Kind",
+      "default": "fixture"
+     },
+     "file": {
+      "type": "string",
+      "title": "File",
+      "description": "Fixture path relative to the scenario directory."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "title": "FixtureMock",
+    "description": "Table-driven mock: first matching response wins (SPEC 5.2)."
+   },
+   "FixtureResponse": {
+    "properties": {
+     "match": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/Matcher"
+      },
+      "type": "object",
+      "title": "Match"
+     },
+     "response": {
+      "$ref": "#/components/schemas/JsonValue"
+     },
+     "ok": {
+      "type": "boolean",
+      "title": "Ok",
+      "description": "False marks this response as a tool error.",
+      "default": true
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "response"
+    ],
+    "title": "FixtureResponse",
+    "description": "One row of a fixture table."
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "HandlerMock": {
+    "properties": {
+     "kind": {
+      "type": "string",
+      "const": "handler",
+      "title": "Kind",
+      "default": "handler"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name",
+      "description": "Registered handler name, e.g. 'sqlite_query'."
+     },
+     "config": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Config"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "HandlerMock",
+    "description": "Python-callable mock for tools that need real logic or state (SPEC 5.3)."
+   },
+   "HealthResponse": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "const": "ok",
+      "title": "Status",
+      "default": "ok"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     },
+     "database": {
+      "type": "string",
+      "enum": [
+       "ok",
+       "unavailable"
+      ],
+      "title": "Database",
+      "default": "ok"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "version"
+    ],
+    "title": "HealthResponse"
+   },
+   "JsonValue": {},
+   "JudgeAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "judge",
+      "title": "Type",
+      "default": "judge"
+     },
+     "rubric": {
+      "type": "string",
+      "title": "Rubric"
+     },
+     "judge_model_key": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Judge Model Key"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "rubric"
+    ],
+    "title": "JudgeAssertion",
+    "description": "LLM-judge rubric. Disabled by default; always flagged non-deterministic."
+   },
+   "LeaderboardCell": {
+    "properties": {
+     "model_key": {
+      "type": "string",
+      "title": "Model Key"
+     },
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "k": {
+      "type": "integer",
+      "title": "K"
+     },
+     "config_hash": {
+      "type": "string",
+      "title": "Config Hash",
+      "default": ""
+     },
+     "config_changed": {
+      "type": "boolean",
+      "title": "Config Changed",
+      "description": "True when this cell's config_hash differs from the scenario on disk.",
+      "default": false
+     },
+     "attempts": {
+      "type": "integer",
+      "title": "Attempts",
+      "default": 0
+     },
+     "pass_at_1": {
+      "type": "number",
+      "title": "Pass At 1",
+      "default": 0.0
+     },
+     "pass_hat_k": {
+      "type": "number",
+      "title": "Pass Hat K",
+      "default": 0.0
+     },
+     "axis_scores": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores"
+     },
+     "cost_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd"
+     },
+     "latency_p50_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms"
+     },
+     "latency_p95_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P95 Ms"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "model_key",
+     "scenario_id",
+     "run_id",
+     "created_at",
+     "k"
+    ],
+    "title": "LeaderboardCell",
+    "description": "One model x scenario cell, from a single run (SPEC 9.2)."
+   },
+   "LeaderboardResponse": {
+    "properties": {
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "scenarios": {
+      "items": {
+       "$ref": "#/components/schemas/LeaderboardScenario"
+      },
+      "type": "array",
+      "title": "Scenarios"
+     },
+     "rows": {
+      "items": {
+       "$ref": "#/components/schemas/LeaderboardRow"
+      },
+      "type": "array",
+      "title": "Rows"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "generated_at"
+    ],
+    "title": "LeaderboardResponse"
+   },
+   "LeaderboardRow": {
+    "properties": {
+     "model_key": {
+      "type": "string",
+      "title": "Model Key"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "litellm_model": {
+      "type": "string",
+      "title": "Litellm Model",
+      "default": ""
+     },
+     "scenarios_covered": {
+      "type": "integer",
+      "title": "Scenarios Covered",
+      "default": 0
+     },
+     "pass_at_1": {
+      "type": "number",
+      "title": "Pass At 1",
+      "default": 0.0
+     },
+     "pass_hat_k": {
+      "type": "number",
+      "title": "Pass Hat K",
+      "default": 0.0
+     },
+     "axis_scores": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores"
+     },
+     "cost_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd"
+     },
+     "latency_p50_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms"
+     },
+     "latency_p95_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P95 Ms"
+     },
+     "has_config_drift": {
+      "type": "boolean",
+      "title": "Has Config Drift",
+      "default": false
+     },
+     "cells": {
+      "items": {
+       "$ref": "#/components/schemas/LeaderboardCell"
+      },
+      "type": "array",
+      "title": "Cells"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "model_key",
+     "display_name"
+    ],
+    "title": "LeaderboardRow"
+   },
+   "LeaderboardScenario": {
+    "properties": {
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title",
+      "default": ""
+     },
+     "current_config_hash": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Config Hash",
+      "description": "Hash of the scenario on disk right now, if it still exists."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scenario_id"
+    ],
+    "title": "LeaderboardScenario"
+   },
+   "Limits": {
+    "properties": {
+     "max_steps_per_turn": {
+      "type": "integer",
+      "maximum": 100.0,
+      "minimum": 1.0,
+      "title": "Max Steps Per Turn",
+      "default": 12
+     },
+     "turn_timeout_s": {
+      "type": "number",
+      "exclusiveMinimum": 0.0,
+      "title": "Turn Timeout S",
+      "default": 120.0
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "Limits",
+    "description": "Per-turn stopping conditions (SPEC 4.1)."
+   },
+   "Matcher": {
+    "properties": {
+     "equals": {
+      "$ref": "#/components/schemas/JsonValue"
+     },
+     "any_of": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/JsonValue"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Any Of"
+     },
+     "regex": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Regex"
+     },
+     "contains": {
+      "$ref": "#/components/schemas/JsonValue"
+     },
+     "not_contains": {
+      "$ref": "#/components/schemas/JsonValue"
+     },
+     "gte": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Gte"
+     },
+     "lte": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Lte"
+     },
+     "date_equals": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Date Equals"
+     },
+     "datetime_equals": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Datetime Equals"
+     },
+     "includes_all": {
+      "anyOf": [
+       {
+        "items": {
+         "$ref": "#/components/schemas/Matcher"
+        },
+        "type": "array"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Includes All"
+     },
+     "exists": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exists"
+     },
+     "absent": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Absent"
+     },
+     "ci": {
+      "type": "boolean",
+      "title": "Ci",
+      "default": false
+     },
+     "partial": {
+      "type": "boolean",
+      "title": "Partial",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "Matcher",
+    "description": "A predicate over one JSON value.\n\nExactly one primary key must be set. ``ci`` and ``partial`` are modifiers\nthat refine string comparisons rather than assertions in their own right."
+   },
+   "ModelInfo": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "display_name": {
+      "type": "string",
+      "title": "Display Name"
+     },
+     "litellm_model": {
+      "type": "string",
+      "title": "Litellm Model"
+     },
+     "provider": {
+      "type": "string",
+      "title": "Provider"
+     },
+     "params": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Params"
+     },
+     "supports_parallel_tool_calls": {
+      "type": "boolean",
+      "title": "Supports Parallel Tool Calls",
+      "default": true
+     },
+     "supports_tool_calling": {
+      "type": "boolean",
+      "title": "Supports Tool Calling",
+      "default": true
+     },
+     "api_key_env": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Api Key Env"
+     },
+     "api_key_present": {
+      "type": "boolean",
+      "title": "Api Key Present",
+      "description": "Whether api_key_env is set in the environment. Never the value."
+     },
+     "pricing_override": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Pricing"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "key",
+     "display_name",
+     "litellm_model",
+     "provider",
+     "api_key_present"
+    ],
+    "title": "ModelInfo",
+    "description": "A registry entry plus key availability. The key itself is never returned."
+   },
+   "ModelListResponse": {
+    "properties": {
+     "models": {
+      "items": {
+       "$ref": "#/components/schemas/ModelInfo"
+      },
+      "type": "array",
+      "title": "Models"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "models"
+    ],
+    "title": "ModelListResponse"
+   },
+   "NoToolCallsAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "no_tool_calls",
+      "title": "Type",
+      "default": "no_tool_calls"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis"
+    ],
+    "title": "NoToolCallsAssertion",
+    "description": "The model made zero tool calls this turn."
+   },
+   "OrderAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "order",
+      "title": "Type",
+      "default": "order"
+     },
+     "before": {
+      "$ref": "#/components/schemas/CallSelector"
+     },
+     "after": {
+      "$ref": "#/components/schemas/CallSelector"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "before",
+     "after"
+    ],
+    "title": "OrderAssertion",
+    "description": "A call matching ``before`` happened before any call matching ``after``."
+   },
+   "ParallelAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "parallel",
+      "title": "Type",
+      "default": "parallel"
+     },
+     "calls": {
+      "items": {
+       "$ref": "#/components/schemas/CallSelector"
+      },
+      "type": "array",
+      "minItems": 2,
+      "title": "Calls"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "calls"
+    ],
+    "title": "ParallelAssertion",
+    "description": "The listed calls all appear in the same assistant message."
+   },
+   "Pricing": {
+    "properties": {
+     "input_per_mtok": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Input Per Mtok"
+     },
+     "output_per_mtok": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Output Per Mtok"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "input_per_mtok",
+     "output_per_mtok"
+    ],
+    "title": "Pricing",
+    "description": "Manual pricing override, USD per million tokens."
+   },
+   "ProgressEvent": {
+    "properties": {
+     "type": {
+      "type": "string",
+      "enum": [
+       "snapshot",
+       "run_started",
+       "attempt_started",
+       "attempt_finished",
+       "run_completed",
+       "heartbeat"
+      ],
+      "title": "Type"
+     },
+     "run_id": {
+      "type": "string",
+      "title": "Run Id"
+     },
+     "run_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RunStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "attempt_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Attempt Id"
+     },
+     "scenario_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scenario Id"
+     },
+     "repetition": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Repetition"
+     },
+     "attempt_status": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/AttemptStatus"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "passed": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Passed"
+     },
+     "completed_attempts": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Completed Attempts"
+     },
+     "total_attempts": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Total Attempts"
+     },
+     "attempt_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Attempt Counts"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     },
+     "ts": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Ts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "type",
+     "run_id",
+     "ts"
+    ],
+    "title": "ProgressEvent",
+    "description": "One Server-Sent Event on ``GET /api/runs/{id}/stream`` (SPEC 9.1).\n\nEmitted as ``event: <type>`` with this object as the JSON ``data`` payload."
+   },
+   "RecoveredAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "recovered",
+      "title": "Type",
+      "default": "recovered"
+     },
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "tool"
+    ],
+    "title": "RecoveredAssertion",
+    "description": "A call to ``tool`` errored and a later call to the same tool succeeded."
+   },
+   "ResponseMatchesAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "response_matches",
+      "title": "Type",
+      "default": "response_matches"
+     },
+     "pattern": {
+      "type": "string",
+      "title": "Pattern"
+     },
+     "ci": {
+      "type": "boolean",
+      "title": "Ci",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "pattern"
+    ],
+    "title": "ResponseMatchesAssertion",
+    "description": "Regex against the final assistant message of the turn."
+   },
+   "ResponseNotMatchesAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "response_not_matches",
+      "title": "Type",
+      "default": "response_not_matches"
+     },
+     "pattern": {
+      "type": "string",
+      "title": "Pattern"
+     },
+     "ci": {
+      "type": "boolean",
+      "title": "Ci",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "pattern"
+    ],
+    "title": "ResponseNotMatchesAssertion",
+    "description": "Inverse of ``response_matches``."
+   },
+   "ResultMatchMode": {
+    "type": "string",
+    "enum": [
+     "value_multiset",
+     "rows_exact"
+    ],
+    "title": "ResultMatchMode",
+    "description": "Comparison strategy for ``tool_result_matches`` (SPEC 6.2)."
+   },
+   "Run": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/RunStatus"
+     },
+     "model_key": {
+      "type": "string",
+      "title": "Model Key"
+     },
+     "litellm_model": {
+      "type": "string",
+      "title": "Litellm Model"
+     },
+     "params": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Params"
+     },
+     "k": {
+      "type": "integer",
+      "title": "K"
+     },
+     "scenario_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Scenario Ids"
+     },
+     "config_hashes": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Config Hashes"
+     },
+     "git_commit": {
+      "type": "string",
+      "title": "Git Commit",
+      "default": "unknown"
+     },
+     "harness_version": {
+      "type": "string",
+      "title": "Harness Version",
+      "default": "0.0.0"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RunSummary"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "attempt_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Attempt Counts",
+      "description": "Attempt count by status."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "created_at",
+     "status",
+     "model_key",
+     "litellm_model",
+     "k"
+    ],
+    "title": "Run",
+    "description": "A run without its (large) scenario snapshots."
+   },
+   "RunCreate": {
+    "properties": {
+     "model_key": {
+      "type": "string",
+      "title": "Model Key"
+     },
+     "scenario_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Scenario Ids"
+     },
+     "k": {
+      "type": "integer",
+      "maximum": 50.0,
+      "minimum": 1.0,
+      "title": "K",
+      "default": 1
+     },
+     "params_override": {
+      "anyOf": [
+       {
+        "additionalProperties": {
+         "$ref": "#/components/schemas/JsonValue"
+        },
+        "type": "object"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Params Override"
+     },
+     "transcript": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Transcript",
+      "description": "FakeModel only: transcript stem to replay (default 'golden')."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "model_key",
+     "scenario_ids"
+    ],
+    "title": "RunCreate",
+    "description": "Body of ``POST /api/runs`` (SPEC 9.2)."
+   },
+   "RunDetail": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Created At"
+     },
+     "status": {
+      "$ref": "#/components/schemas/RunStatus"
+     },
+     "model_key": {
+      "type": "string",
+      "title": "Model Key"
+     },
+     "litellm_model": {
+      "type": "string",
+      "title": "Litellm Model"
+     },
+     "params": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Params"
+     },
+     "k": {
+      "type": "integer",
+      "title": "K"
+     },
+     "scenario_ids": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Scenario Ids"
+     },
+     "config_hashes": {
+      "additionalProperties": {
+       "type": "string"
+      },
+      "type": "object",
+      "title": "Config Hashes"
+     },
+     "git_commit": {
+      "type": "string",
+      "title": "Git Commit",
+      "default": "unknown"
+     },
+     "harness_version": {
+      "type": "string",
+      "title": "Harness Version",
+      "default": "0.0.0"
+     },
+     "summary": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/RunSummary"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "attempt_counts": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Attempt Counts",
+      "description": "Attempt count by status."
+     },
+     "attempts": {
+      "items": {
+       "$ref": "#/components/schemas/AttemptSummary"
+      },
+      "type": "array",
+      "title": "Attempts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "created_at",
+     "status",
+     "model_key",
+     "litellm_model",
+     "k"
+    ],
+    "title": "RunDetail"
+   },
+   "RunListResponse": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/Run"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "limit": {
+      "type": "integer",
+      "title": "Limit"
+     },
+     "offset": {
+      "type": "integer",
+      "title": "Offset"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "items",
+     "total",
+     "limit",
+     "offset"
+    ],
+    "title": "RunListResponse"
+   },
+   "RunStatus": {
+    "type": "string",
+    "enum": [
+     "queued",
+     "running",
+     "completed",
+     "failed",
+     "cancelled"
+    ],
+    "title": "RunStatus"
+   },
+   "RunSummary": {
+    "properties": {
+     "k": {
+      "type": "integer",
+      "title": "K",
+      "default": 1
+     },
+     "total_attempts": {
+      "type": "integer",
+      "title": "Total Attempts",
+      "default": 0
+     },
+     "completed_attempts": {
+      "type": "integer",
+      "title": "Completed Attempts",
+      "default": 0
+     },
+     "passed_attempts": {
+      "type": "integer",
+      "title": "Passed Attempts",
+      "default": 0
+     },
+     "failed_attempts": {
+      "type": "integer",
+      "title": "Failed Attempts",
+      "default": 0
+     },
+     "cancelled_attempts": {
+      "type": "integer",
+      "title": "Cancelled Attempts",
+      "default": 0
+     },
+     "errored_attempts": {
+      "type": "integer",
+      "title": "Errored Attempts",
+      "default": 0
+     },
+     "pass_at_1": {
+      "type": "number",
+      "title": "Pass At 1",
+      "default": 0.0
+     },
+     "pass_hat_k": {
+      "type": "number",
+      "title": "Pass Hat K",
+      "default": 0.0
+     },
+     "axis_scores": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores"
+     },
+     "cost_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd",
+      "description": "Null when any attempt's cost is unknown; never guessed."
+     },
+     "latency_p50_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms"
+     },
+     "latency_p95_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P95 Ms"
+     },
+     "model_calls": {
+      "type": "integer",
+      "title": "Model Calls",
+      "default": 0
+     },
+     "input_tokens": {
+      "type": "integer",
+      "title": "Input Tokens",
+      "default": 0
+     },
+     "output_tokens": {
+      "type": "integer",
+      "title": "Output Tokens",
+      "default": 0
+     },
+     "mean_steps_per_turn": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mean Steps Per Turn"
+     },
+     "per_scenario": {
+      "items": {
+       "$ref": "#/components/schemas/ScenarioStats"
+      },
+      "type": "array",
+      "title": "Per Scenario"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "title": "RunSummary",
+    "description": "The ``runs.summary`` jsonb blob, computed by ``finalize_run`` (SPEC 6.3)."
+   },
+   "Scenario": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "title": "Id",
+      "description": "Must equal the directory name."
+     },
+     "version": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Version",
+      "description": "Bump on any change that affects grading."
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "description": {
+      "type": "string",
+      "title": "Description",
+      "default": ""
+     },
+     "axes": {
+      "items": {
+       "$ref": "#/components/schemas/Axis"
+      },
+      "type": "array",
+      "title": "Axes"
+     },
+     "clock": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Clock",
+      "description": "Frozen 'now'; injected into the system prompt."
+     },
+     "system_prompt": {
+      "type": "string",
+      "title": "System Prompt"
+     },
+     "limits": {
+      "$ref": "#/components/schemas/Limits"
+     },
+     "tools": {
+      "type": "string",
+      "title": "Tools",
+      "description": "Tool file, relative to scenario dir.",
+      "default": "tools.json"
+     },
+     "fixtures": {
+      "type": "string",
+      "title": "Fixtures",
+      "description": "Fixture dir, relative to scenario dir.",
+      "default": "fixtures/"
+     },
+     "faults": {
+      "items": {
+       "$ref": "#/components/schemas/Fault"
+      },
+      "type": "array",
+      "title": "Faults"
+     },
+     "continue_on_fail": {
+      "type": "boolean",
+      "title": "Continue On Fail",
+      "default": true
+     },
+     "turns": {
+      "items": {
+       "$ref": "#/components/schemas/Turn"
+      },
+      "type": "array",
+      "minItems": 1,
+      "title": "Turns"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "version",
+     "title",
+     "clock",
+     "system_prompt",
+     "turns"
+    ],
+    "title": "Scenario",
+    "description": "A full scenario definition, as parsed from ``scenario.yaml``."
+   },
+   "ScenarioDetail": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "config_hash": {
+      "type": "string",
+      "title": "Config Hash"
+     },
+     "valid": {
+      "type": "boolean",
+      "title": "Valid",
+      "default": true
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "scenario": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Scenario"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "tools": {
+      "items": {
+       "$ref": "#/components/schemas/ToolDefinition"
+      },
+      "type": "array",
+      "title": "Tools"
+     },
+     "fixtures": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/FixtureFile"
+      },
+      "type": "object",
+      "title": "Fixtures"
+     },
+     "expected": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/JsonValue"
+      },
+      "type": "object",
+      "title": "Expected"
+     },
+     "transcripts": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Transcripts"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "config_hash"
+    ],
+    "title": "ScenarioDetail",
+    "description": "Full definition, exactly as the harness loaded it."
+   },
+   "ScenarioDiff": {
+    "properties": {
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "config_hash_a": {
+      "type": "string",
+      "title": "Config Hash A",
+      "default": ""
+     },
+     "config_hash_b": {
+      "type": "string",
+      "title": "Config Hash B",
+      "default": ""
+     },
+     "config_changed": {
+      "type": "boolean",
+      "title": "Config Changed",
+      "default": false
+     },
+     "pass_at_1_a": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass At 1 A"
+     },
+     "pass_at_1_b": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass At 1 B"
+     },
+     "pass_at_1_delta": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass At 1 Delta"
+     },
+     "pass_hat_k_a": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass Hat K A"
+     },
+     "pass_hat_k_b": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass Hat K B"
+     },
+     "pass_hat_k_delta": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pass Hat K Delta"
+     },
+     "axis_scores_a": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores A"
+     },
+     "axis_scores_b": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores B"
+     },
+     "axis_deltas": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Deltas"
+     },
+     "cost_usd_a": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd A"
+     },
+     "cost_usd_b": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd B"
+     },
+     "cost_usd_delta": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd Delta"
+     },
+     "latency_p50_ms_a": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms A"
+     },
+     "latency_p50_ms_b": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms B"
+     },
+     "latency_p50_ms_delta": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms Delta"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scenario_id"
+    ],
+    "title": "ScenarioDiff"
+   },
+   "ScenarioListResponse": {
+    "properties": {
+     "scenarios": {
+      "items": {
+       "$ref": "#/components/schemas/ScenarioSummary"
+      },
+      "type": "array",
+      "title": "Scenarios"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scenarios"
+    ],
+    "title": "ScenarioListResponse"
+   },
+   "ScenarioStats": {
+    "properties": {
+     "scenario_id": {
+      "type": "string",
+      "title": "Scenario Id"
+     },
+     "config_hash": {
+      "type": "string",
+      "title": "Config Hash",
+      "default": ""
+     },
+     "attempts": {
+      "type": "integer",
+      "title": "Attempts",
+      "default": 0
+     },
+     "completed": {
+      "type": "integer",
+      "title": "Completed",
+      "default": 0
+     },
+     "passed": {
+      "type": "integer",
+      "title": "Passed",
+      "default": 0
+     },
+     "pass_at_1": {
+      "type": "number",
+      "title": "Pass At 1",
+      "default": 0.0
+     },
+     "pass_hat_k": {
+      "type": "number",
+      "title": "Pass Hat K",
+      "default": 0.0
+     },
+     "axis_scores": {
+      "additionalProperties": {
+       "type": "number"
+      },
+      "type": "object",
+      "title": "Axis Scores"
+     },
+     "cost_usd": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cost Usd"
+     },
+     "latency_p50_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P50 Ms"
+     },
+     "latency_p95_ms": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Latency P95 Ms"
+     },
+     "input_tokens": {
+      "type": "integer",
+      "title": "Input Tokens",
+      "default": 0
+     },
+     "output_tokens": {
+      "type": "integer",
+      "title": "Output Tokens",
+      "default": 0
+     },
+     "mean_steps_per_turn": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Mean Steps Per Turn"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "scenario_id"
+    ],
+    "title": "ScenarioStats",
+    "description": "Per-scenario slice of a run summary (SPEC 6.3)."
+   },
+   "ScenarioSummary": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title",
+      "default": ""
+     },
+     "description": {
+      "type": "string",
+      "title": "Description",
+      "default": ""
+     },
+     "version": {
+      "type": "integer",
+      "title": "Version",
+      "default": 0
+     },
+     "axes": {
+      "items": {
+       "$ref": "#/components/schemas/Axis"
+      },
+      "type": "array",
+      "title": "Axes"
+     },
+     "turn_count": {
+      "type": "integer",
+      "title": "Turn Count",
+      "default": 0
+     },
+     "tool_count": {
+      "type": "integer",
+      "title": "Tool Count",
+      "default": 0
+     },
+     "assertion_count": {
+      "type": "integer",
+      "title": "Assertion Count",
+      "default": 0
+     },
+     "config_hash": {
+      "type": "string",
+      "title": "Config Hash",
+      "default": ""
+     },
+     "valid": {
+      "type": "boolean",
+      "title": "Valid",
+      "default": true
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id"
+    ],
+    "title": "ScenarioSummary",
+    "description": "One row of ``GET /api/scenarios``; ``valid`` reflects load-time validation."
+   },
+   "Scope": {
+    "type": "string",
+    "enum": [
+     "turn",
+     "scenario"
+    ],
+    "title": "Scope",
+    "description": "Which events an assertion sees."
+   },
+   "Severity": {
+    "type": "string",
+    "enum": [
+     "critical",
+     "required",
+     "soft"
+    ],
+    "title": "Severity",
+    "description": "How much an assertion failure costs.\n\n``critical`` aborts the attempt (everything is still recorded),\n``required`` fails the turn, ``soft`` only moves axis scores."
+   },
+   "ToolCalledAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "tool_called",
+      "title": "Type",
+      "default": "tool_called"
+     },
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     },
+     "args": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/Matcher"
+      },
+      "type": "object",
+      "title": "Args"
+     },
+     "count": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/CountConstraint"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "tool"
+    ],
+    "title": "ToolCalledAssertion",
+    "description": "At least one call to ``tool`` whose args satisfy the matchers."
+   },
+   "ToolDefinition": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+      "title": "Name"
+     },
+     "description": {
+      "type": "string",
+      "title": "Description"
+     },
+     "parameters": {
+      "additionalProperties": true,
+      "type": "object",
+      "title": "Parameters",
+      "description": "JSON Schema for the arguments object."
+     },
+     "mock": {
+      "oneOf": [
+       {
+        "$ref": "#/components/schemas/FixtureMock"
+       },
+       {
+        "$ref": "#/components/schemas/HandlerMock"
+       }
+      ],
+      "title": "Mock",
+      "discriminator": {
+       "propertyName": "kind",
+       "mapping": {
+        "fixture": "#/components/schemas/FixtureMock",
+        "handler": "#/components/schemas/HandlerMock"
+       }
+      }
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "name",
+     "description",
+     "parameters",
+     "mock"
+    ],
+    "title": "ToolDefinition",
+    "description": "One tool: OpenAI function-calling shape plus how it is mocked."
+   },
+   "ToolNotCalledAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "tool_not_called",
+      "title": "Type",
+      "default": "tool_not_called"
+     },
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     },
+     "args": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/Matcher"
+      },
+      "type": "object",
+      "title": "Args"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "tool"
+    ],
+    "title": "ToolNotCalledAssertion",
+    "description": "No call to ``tool`` (optionally only calls matching ``args``)."
+   },
+   "ToolResultMatchesAssertion": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Id",
+      "description": "Unique within the scenario."
+     },
+     "axis": {
+      "$ref": "#/components/schemas/Axis"
+     },
+     "severity": {
+      "$ref": "#/components/schemas/Severity",
+      "default": "required"
+     },
+     "scope": {
+      "$ref": "#/components/schemas/Scope",
+      "default": "turn"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "type": {
+      "type": "string",
+      "const": "tool_result_matches",
+      "title": "Type",
+      "default": "tool_result_matches"
+     },
+     "tool": {
+      "type": "string",
+      "title": "Tool"
+     },
+     "expected": {
+      "type": "string",
+      "title": "Expected",
+      "description": "Path to the expected-result JSON, relative to scenario dir."
+     },
+     "mode": {
+      "$ref": "#/components/schemas/ResultMatchMode",
+      "default": "value_multiset"
+     },
+     "tolerance": {
+      "type": "number",
+      "minimum": 0.0,
+      "title": "Tolerance",
+      "default": 0.01
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "axis",
+     "tool",
+     "expected"
+    ],
+    "title": "ToolResultMatchesAssertion",
+    "description": "Some successful call to ``tool`` produced a result matching ``expected``."
+   },
+   "Turn": {
+    "properties": {
+     "user": {
+      "type": "string",
+      "minLength": 1,
+      "title": "User"
+     },
+     "assertions": {
+      "items": {
+       "oneOf": [
+        {
+         "$ref": "#/components/schemas/ToolCalledAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ToolNotCalledAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/OrderAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ParallelAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/NoToolCallsAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ClarificationAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/RecoveredAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ToolResultMatchesAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ArgsNotContainsAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ResponseMatchesAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/ResponseNotMatchesAssertion"
+        },
+        {
+         "$ref": "#/components/schemas/JudgeAssertion"
+        }
+       ],
+       "discriminator": {
+        "propertyName": "type",
+        "mapping": {
+         "args_not_contains": "#/components/schemas/ArgsNotContainsAssertion",
+         "clarification": "#/components/schemas/ClarificationAssertion",
+         "judge": "#/components/schemas/JudgeAssertion",
+         "no_tool_calls": "#/components/schemas/NoToolCallsAssertion",
+         "order": "#/components/schemas/OrderAssertion",
+         "parallel": "#/components/schemas/ParallelAssertion",
+         "recovered": "#/components/schemas/RecoveredAssertion",
+         "response_matches": "#/components/schemas/ResponseMatchesAssertion",
+         "response_not_matches": "#/components/schemas/ResponseNotMatchesAssertion",
+         "tool_called": "#/components/schemas/ToolCalledAssertion",
+         "tool_not_called": "#/components/schemas/ToolNotCalledAssertion",
+         "tool_result_matches": "#/components/schemas/ToolResultMatchesAssertion"
+        }
+       }
+      },
+      "type": "array",
+      "title": "Assertions"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "user"
+    ],
+    "title": "Turn",
+    "description": "One scripted user message and the assertions graded after it."
+   },
+   "TurnOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "attempt_id": {
+      "type": "string",
+      "title": "Attempt Id"
+     },
+     "index": {
+      "type": "integer",
+      "title": "Index"
+     },
+     "user_message": {
+      "type": "string",
+      "title": "User Message"
+     },
+     "final_response": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Final Response"
+     },
+     "passed": {
+      "type": "boolean",
+      "title": "Passed",
+      "default": true
+     },
+     "limit_exceeded": {
+      "type": "boolean",
+      "title": "Limit Exceeded",
+      "default": false
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "id",
+     "attempt_id",
+     "index",
+     "user_message"
+    ],
+    "title": "TurnOut"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

@@ -1,0 +1,72 @@
+id: data-analyst
+version: 1
+title: Revenue analysis over a seeded warehouse
+description: >
+  Tests recovery from a transient tool failure, carrying context across turns, and
+  restraint. The warehouse contains a pre-2024 decoy table and refunded orders, so the
+  graded numbers only come out right if the model filters correctly and keeps the
+  revenue definition in mind on the follow-up turn.
+axes: [selection, arguments, recovery, state, restraint]
+clock: "2026-03-02T09:00:00+04:00"
+system_prompt: |
+  You are a data analyst with read-only access to the Northwind Retail warehouse, a
+  SQLite database. Answer questions by querying it; only SELECT statements are allowed.
+
+  Revenue means the sum of `amount_aed` for orders with `status = 'completed'`.
+  Refunded orders are never revenue. Amounts are whole dirhams (AED).
+
+  Inspect the schema before you write a query if you are unsure of a column, quote the
+  figures you actually got back, and say so plainly if a query fails.
+limits:
+  max_steps_per_turn: 12
+  turn_timeout_s: 180
+tools: tools.json
+fixtures: fixtures/
+faults:
+  - tool: run_sql
+    on_call: 1
+    response: {error: "QueryTimeout", message: "Statement exceeded 5s. Retry."}
+turns:
+  - user: "What was our total revenue by month for 2025?"
+    assertions:
+      - id: t1-explored-schema
+        type: tool_called
+        axis: selection
+        severity: soft
+        description: Looked at what tables exist before querying blind.
+        tool: list_tables
+      - id: t1-recovered
+        type: recovered
+        axis: recovery
+        severity: required
+        description: The first run_sql call times out; a later one must succeed.
+        tool: run_sql
+      - id: t1-monthly-revenue
+        type: tool_result_matches
+        axis: arguments
+        severity: required
+        description: >
+          The 12 monthly totals for 2025, completed orders only, from `orders` rather
+          than `orders_archive`.
+        tool: run_sql
+        expected: expected/monthly_2025.json
+        mode: value_multiset
+  - user: "Now break that down by region."
+    assertions:
+      - id: t2-region-revenue
+        type: tool_result_matches
+        axis: state
+        severity: required
+        description: >
+          Carries 2025 and the completed-only revenue definition forward, and joins
+          customers to get the region. 12 months x 4 regions = 48 values.
+        tool: run_sql
+        expected: expected/monthly_region_2025.json
+        mode: value_multiset
+  - user: "Quick one, what's the difference between a LEFT JOIN and an INNER JOIN?"
+    assertions:
+      - id: t3-no-tools
+        type: no_tool_calls
+        axis: restraint
+        severity: required
+        description: A general SQL question needs no database access.

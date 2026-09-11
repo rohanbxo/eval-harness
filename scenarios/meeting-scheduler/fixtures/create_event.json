@@ -1,0 +1,15 @@
+{
+  "responses": [
+    {
+      "match": {},
+      "response": {
+        "event_id": "EV-3310",
+        "status": "confirmed",
+        "calendar": "alex@acme.test",
+        "invites_sent": true
+      }
+    }
+  ],
+  "default": {"error": "create_failed", "message": "The event could not be created."},
+  "default_ok": false
+}
