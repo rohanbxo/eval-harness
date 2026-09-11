@@ -638,3 +638,113 @@ prove the assertion catches the bug — if that test ever passes, the invariant 
 stopped testing anything.
 
 A test that cannot fail against the bug it was written for is decoration.
+
+## D33 — The turn budget times the model, not the throttle
+
+D32 moved the rate-limiter acquire inside `provider.complete()` so that retries would
+take slots too. That was right, and it silently broke something else: the conversation
+loop wrapped the whole coroutine in `asyncio.wait_for(timeout=turn_timeout_s)`, so from
+that moment queueing for a slot spent the turn's budget.
+
+The damage was measured, not guessed. Across the two models that reached full coverage,
+the p95 queue wait was 53–58s against a 120s turn. Fourteen attempts ended on
+`turn_timeout_s`, and for thirteen of them the queue wait recorded *within the timed-out
+turn alone* was 42–55% of the budget — excluding the final wait, which was never recorded
+because the timeout fired inside it. `gpt-oss-120b-groq` scored 0/5 on meeting-scheduler,
+four of those five being timeouts; on Groq, attempts that did not time out spent 92–96%
+of their wall clock queued. The harness was grading its own throttle.
+
+Two changes:
+
+- `call_timeout_s` is now passed *to* the provider rather than wrapped *around* it, so it
+  bounds the HTTP call alone. A timed-out call is not retried — a retry would need a
+  budget already established as spent.
+- After each successful call the turn deadline is extended by `wait_ms`, which covers
+  both limiter queueing and retry backoff. Neither is the model spending its turn.
+
+Because `turn_timeout_s` now deliberately ignores elapsed time, something else has to stop
+an attempt that is starved rather than slow. `attempt_timeout_s` (default 600s) is that
+backstop and is the only limit here measured in real wall clock, waits included.
+
+`tests/test_turn_budget.py` pins the guarantee: a limiter wait twice the length of the
+whole turn budget, with an instant model, must still pass the turn.
+`test_the_old_wrapping_fails_this_suite` reconstructs the previous arrangement and asserts
+it dies, so the test cannot quietly stop testing anything.
+
+The general lesson is the one D32 already paid for once: a change that is correct in
+isolation can invalidate a guarantee two modules away, and only a test written against the
+*guarantee* — not the mechanism — catches it.
+
+## D34 — max_tokens is set explicitly, from this harness's own data
+
+All four models now send `max_tokens: 16384`. The number is not a vendor default or a
+round guess: across 1,461 recorded calls the largest single completion any model produced
+was 4,184 tokens (gemini-3.5-flash), so 16384 is roughly 3.9x the observed maximum.
+
+Leaving it unset was not the neutral choice it looked like. OpenRouter reserves credit
+against the model's own ceiling, so an unset budget reserved 65,536 tokens per call and
+two models failed 22 attempts outright with *"This request requires more credits, or fewer
+max_tokens. You requested up to 65536 tokens, but can only afford 64772"*. Setting it
+explicitly cuts the reservation fourfold and, more importantly, makes the token budget a
+recorded run parameter instead of a provider default that can change underneath a
+comparison.
+
+Per-call `input_tokens` and `output_tokens` were already stored on `events` (SPEC 8.3) but
+not in the payload, which made them easy to miss — an earlier report claimed they were not
+recorded at all and sized this value from attempt totals instead. They are now mirrored
+into the payload, and `reasoning_tokens` is recorded alongside them where the provider
+reports it. It is `None` when unreported rather than `0`: a reasoning model can sit near
+its ceiling while its visible content is short, so "not reported" and "did not reason"
+size a budget very differently.
+
+## D35 — Truncation is a distinct event, not a silent stop
+
+A response that ends on `finish_reason=length` was cut off by `max_tokens` mid-thought.
+Nothing the harness enforces stopped it, so without its own event it grades exactly like a
+model that chose to stop: a missing tool call reads as a decision rather than an
+interruption.
+
+`EventType.TRUNCATED` records it with the completion and reasoning token counts, the
+attempt carries a `truncated` flag, and the run summary carries `truncated_attempts`, which
+the dashboard surfaces as a banner and the trace viewer as its own card.
+
+Such an attempt is still graded and still counted in the rates — it did produce a verdict,
+and dropping it would quietly shrink coverage. It is flagged, not excluded.
+
+For the record: this occurred zero times in the run that motivated it. All 291 calls
+finished on `tool_calls` or `stop`. The blank response that prompted the investigation was
+a turn timeout (D33), not truncation. The guard is here for the next run, and the fact that
+it would have fired zero times is itself worth knowing.
+
+## D36 — A run refuses to launch that the account cannot pay for
+
+Credits running out mid-run does not fail cleanly. It fails *partially*: some attempts
+complete, others error, and the resulting coverage gap looks exactly like a capability
+difference until someone reads the error text. That is how 22 attempts were lost across
+claude-sonnet-5 and gemini-3.5-flash, and the scores that run produced were not comparable
+to the two models that finished.
+
+`evalharness run` now queries OpenRouter's credits endpoint before launching and refuses
+if the balance is below the worst case the spend ceiling allows (`max_cost_usd` x models).
+Both numbers are printed either way, so a run that proceeds has shown its work too.
+
+The check is deliberately conservative: it compares against what the run is *permitted* to
+spend, not what it is expected to spend, because "expected" is precisely the estimate that
+was wrong when the credits ran out. A run with no ceiling is refused rather than waved
+through — an unbounded run cannot be shown to be affordable. `--skip-balance-check` exists
+for offline and non-OpenRouter work.
+
+## D37 — data-analyst separates touching the decoy from being fooled by it
+
+`orders_archive` is a pre-2024 decoy table. The graded assertion, `t1-monthly-revenue`,
+compares the returned rows against the expected 2025 figures, so it only fails when the
+decoy actually corrupted the answer — which is the right thing to grade, but it means a
+run could not report how often the decoy was *touched*.
+
+Those are different behaviours. Querying the archive while exploring is reasonable; basing
+the answer on it is not. `t1-archive-not-queried` and `t2-archive-not-queried` are soft
+`args_not_contains` assertions that record the first, leaving the required assertions to
+grade the second. A run now reports both counts, and a soft failure moves the restraint
+axis without failing the turn.
+
+Scenario version bumped to 2.

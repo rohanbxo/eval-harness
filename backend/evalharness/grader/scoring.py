@@ -140,6 +140,8 @@ class RunSummary:
     latency_p50_ms: float | None
     latency_p95_ms: float | None
     mean_steps_per_turn: float | None
+    truncated_attempts: int = 0
+    """Attempts holding a response that stopped on finish_reason=length (D35)."""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -162,6 +164,7 @@ class RunSummary:
             "latency_p50_ms": self.latency_p50_ms,
             "latency_p95_ms": self.latency_p95_ms,
             "mean_steps_per_turn": self.mean_steps_per_turn,
+            "truncated_attempts": self.truncated_attempts,
         }
 
 
@@ -226,6 +229,7 @@ def summarize_run(attempts: Sequence[AttemptResult], k: int) -> RunSummary:
         attempts=len(attempts),
         graded_attempts=len(graded),
         errored_attempts=errored,
+        truncated_attempts=sum(1 for a in attempts if a.truncated),
         coverage=coverage,
         incomplete=coverage < 1.0,
         passed_attempts=passed,

@@ -71,6 +71,7 @@ class EventType(StrEnum):
     FAULT = "fault"
     RETRY = "retry"
     LIMIT_EXCEEDED = "limit_exceeded"
+    TRUNCATED = "truncated"
     ERROR = "error"
 
 

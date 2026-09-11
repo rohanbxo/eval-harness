@@ -35,6 +35,7 @@ from evalharness.loader import (
 )
 from evalharness.runner import AttemptContext, FakeModel, LiteLLMProvider, Provider, run_attempt
 from evalharness.runner.manifest import ManifestError, build_manifest, verify_manifest
+from evalharness.runner.preflight import PreflightError, check_balance
 from evalharness.schema.registry import ModelEntry
 from evalharness.schema.runtime import AttemptResult
 from evalharness.schema.transcript import Transcript
@@ -88,6 +89,38 @@ def _repo_root() -> Path:
 
 def _models_file(override: Path | None) -> Path:
     return override if override is not None else _settings().models_file
+
+
+def _check_balance(entry: ModelEntry, *, max_cost_usd: float | None) -> None:
+    """Refuse to launch a run the account cannot pay for (D36).
+
+    Credits running out mid-run does not fail cleanly -- it erodes coverage and
+    disguises an outage as a capability gap -- so the ceiling is checked against
+    the balance up front, and both numbers are printed whichever way it goes.
+    """
+    if entry.litellm_model.startswith("fake/"):
+        return  # replays a transcript; there is nothing to spend and nobody to ask
+    if entry.api_key_env is None:
+        raise _fail(f"{entry.key} declares no api_key_env to check a balance against", code=1)
+    api_key = os.environ.get(entry.api_key_env, "")
+    if not api_key:
+        raise _fail(f"{entry.api_key_env} is not set", code=1)
+    try:
+        check = check_balance(api_key=api_key, models=1, max_cost_usd=max_cost_usd)
+    except PreflightError as exc:
+        raise _fail(
+            f"pre-flight balance check failed: {exc}. Pass --skip-balance-check to launch anyway.",
+            code=1,
+        ) from exc
+
+    colour = "green" if check.sufficient else "red"
+    console.print(f"[{colour}]{check.render()}[/{colour}]")
+    if not check.sufficient:
+        raise _fail(
+            f"refusing to launch: {check.detail}. "
+            "Top up the account, lower --max-cost-usd, or pass --skip-balance-check.",
+            code=1,
+        )
 
 
 def _fail(message: str, code: int = 2) -> typer.Exit:
@@ -394,6 +427,13 @@ def run(
             help="Launch even with uncommitted changes. For throwaway runs only.",
         ),
     ] = False,
+    skip_balance_check: Annotated[
+        bool,
+        typer.Option(
+            "--skip-balance-check",
+            help="Launch without asking the provider whether the account can afford it.",
+        ),
+    ] = False,
     scenarios_dir: ScenariosDirOption = None,
     models_file: ModelsFileOption = None,
 ) -> None:
@@ -450,6 +490,9 @@ def run(
         verify_manifest(manifest, models_file=_models_file(models_file), allow_dirty=allow_dirty)
     except ManifestError as exc:
         raise _fail(str(exc), code=1) from exc
+
+    if not skip_balance_check:
+        _check_balance(entry, max_cost_usd=max_cost_usd if max_cost_usd > 0 else None)
 
     console.print(f"running [bold]{entry.key}[/bold] over {len(selected)} scenario(s), k={k}")
     try:

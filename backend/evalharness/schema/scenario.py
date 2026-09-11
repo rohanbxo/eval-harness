@@ -11,12 +11,31 @@ from evalharness.schema.enums import Axis
 
 
 class Limits(BaseModel):
-    """Per-turn stopping conditions (SPEC 4.1)."""
+    """Stopping conditions for a turn, and a backstop for the whole attempt."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     max_steps_per_turn: int = Field(default=12, ge=1, le=100)
-    turn_timeout_s: float = Field(default=120.0, gt=0)
+    turn_timeout_s: float = Field(
+        default=120.0,
+        gt=0,
+        description=(
+            "Budget for the model's own work in one turn. Time the harness spends "
+            "queueing for a rate-limit slot or backing off after a 429 does not "
+            "count against it -- that would grade the throttle, not the model "
+            "(DECISIONS D33)."
+        ),
+    )
+    attempt_timeout_s: float = Field(
+        default=600.0,
+        gt=0,
+        description=(
+            "Hard wall-clock ceiling for one attempt, waits included. Because "
+            "turn_timeout_s deliberately ignores queueing, something has to stop "
+            "an attempt that is starved rather than slow; this is that backstop, "
+            "and it is the only limit here measured in real elapsed time."
+        ),
+    )
 
 
 class Fault(BaseModel):

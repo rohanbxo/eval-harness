@@ -13,11 +13,23 @@
 # four endpoints do not accept the parameter at all, and a split where half the
 # field is pinned to 0 and half is not would bias pass^k toward the pinned half
 # (DECISIONS D22).
+# `max_tokens` is 16384 on every model, chosen from this harness's own data
+# rather than a vendor default. The largest single completion any model produced
+# across 1,461 calls was 4,184 tokens (gemini-3.5-flash); 16384 is ~3.9x that,
+# so it is headroom, not a constraint.
+#
+# Leaving it unset was not neutral. OpenRouter reserves credit against the
+# model's own ceiling, so an unset budget reserved 65,536 tokens per call and
+# two models failed 22 attempts outright with "requires more credits, or fewer
+# max_tokens". Setting it explicitly cuts the reservation four-fold and makes
+# the run's token budget a recorded parameter instead of a provider default
+# that can change underneath a comparison (DECISIONS D34).
 models:
   - key: gpt-5.6-terra
     display_name: "OpenAI GPT-5.6 Terra"
     litellm_model: "openrouter/openai/gpt-5.6-terra"
-    params: {}
+    params:
+      max_tokens: 16384
     reasoning_effort: medium
     provider_routing:
       order: [openai]
@@ -29,7 +41,8 @@ models:
   - key: claude-sonnet-5
     display_name: "Anthropic Claude Sonnet 5"
     litellm_model: "openrouter/anthropic/claude-sonnet-5"
-    params: {}
+    params:
+      max_tokens: 16384
     reasoning_effort: medium
     provider_routing:
       order: [anthropic]
@@ -41,7 +54,8 @@ models:
   - key: gemini-3.5-flash
     display_name: "Google Gemini 3.5 Flash"
     litellm_model: "openrouter/google/gemini-3.5-flash"
-    params: {}
+    params:
+      max_tokens: 16384
     # reasoning_effort is supported directly, so "medium" needs no mapping.
     reasoning_effort: medium
     provider_routing:
@@ -54,7 +68,8 @@ models:
   - key: gpt-oss-120b-groq
     display_name: "GPT-OSS 120B (Groq)"
     litellm_model: "openrouter/openai/gpt-oss-120b"
-    params: {}
+    params:
+      max_tokens: 16384
     reasoning_effort: medium
     provider_routing:
       order: [groq]

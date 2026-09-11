@@ -12,7 +12,6 @@ This module only drives the conversation and writes down what happened.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -120,6 +119,10 @@ class _Attempt:
         self.error: str | None = None
         self.cancelled = False
         self.stop = False
+        self.truncated = False
+        # Real elapsed time, waits included. turn_timeout_s deliberately does not
+        # count queueing, so this is what stops a starved attempt (D33).
+        self.attempt_deadline = time.monotonic() + self.scenario.limits.attempt_timeout_s
 
     # -- events ------------------------------------------------------------
 
@@ -254,7 +257,14 @@ class _Attempt:
             self.stop = True
 
     async def drive_turn(self, turn: TurnRecord, messages: list[dict[str, Any]]) -> None:
-        """Model call -> tool calls -> model call, until it stops or a limit fires."""
+        """Model call -> tool calls -> model call, until it stops or a limit fires.
+
+        The turn budget measures the model, not the harness. Time spent queueing
+        for a rate-limit slot is added back to the deadline once the call
+        returns, and each call is handed only the model-facing remainder as its
+        own timeout -- so a slot that took 55 seconds to obtain no longer eats
+        half the turn (DECISIONS D33).
+        """
         limits = self.scenario.limits
         deadline = time.monotonic() + limits.turn_timeout_s
 
@@ -268,13 +278,25 @@ class _Attempt:
             if remaining <= 0:
                 await self.limit_hit(turn, "turn_timeout_s", f"{limits.turn_timeout_s}s elapsed")
                 return
+            attempt_remaining = self.attempt_deadline - time.monotonic()
+            if attempt_remaining <= 0:
+                await self.limit_hit(
+                    turn,
+                    "attempt_timeout_s",
+                    f"{limits.attempt_timeout_s}s of wall clock, waits included",
+                )
+                return
             if await self.cancelled_now():
                 await self.mark_cancelled(turn.index)
                 return
 
-            message = await self.call_model(turn, messages, remaining)
+            message = await self.call_model(turn, messages, min(remaining, attempt_remaining))
             if message is None:
                 return
+
+            # Give back whatever the throttle took. wait_ms covers queueing for a
+            # slot and any retry backoff: neither is the model spending its turn.
+            deadline += message.wait_ms / 1000.0
 
             messages.append(_assistant_message_dict(message))
             if message.content:
@@ -300,14 +322,17 @@ class _Attempt:
             turn_index=turn.index,
         )
         try:
-            message = await asyncio.wait_for(
-                self.ctx.provider.complete(
-                    messages,
-                    self.loaded.openai_tools(),
-                    tool_choice="auto",
-                    **self.ctx.params,
-                ),
-                timeout=budget_s,
+            # The timeout is handed to the provider rather than wrapped around
+            # it, so it bounds the HTTP call alone. Wrapping the whole coroutine
+            # charged rate-limiter queueing to the turn budget, and at rpm=12 a
+            # p95 queue wait of ~55s against a 120s turn meant two queued calls
+            # timed out a turn the model was handling fine (DECISIONS D33).
+            message = await self.ctx.provider.complete(
+                messages,
+                self.loaded.openai_tools(),
+                tool_choice="auto",
+                call_timeout_s=budget_s,
+                **self.ctx.params,
             )
         except TimeoutError:
             await self.limit_hit(turn, "turn_timeout_s", "model call exceeded the turn budget")
@@ -350,12 +375,34 @@ class _Attempt:
                     for c in message.tool_calls
                 ],
                 "cost_usd": message.cost_usd,
+                # Mirrored from the event columns so a payload-only consumer --
+                # a JSON export, the trace viewer -- can size a max_tokens
+                # budget without a second query. reasoning_tokens has no column
+                # of its own (SPEC 8.3 predates it) and lives only here.
+                "input_tokens": message.input_tokens,
+                "output_tokens": message.output_tokens,
+                "reasoning_tokens": message.reasoning_tokens,
             },
             turn_index=turn.index,
             latency_ms=message.latency_ms,
             input_tokens=message.input_tokens,
             output_tokens=message.output_tokens,
         )
+        if message.finish_reason == "length":
+            # The model was cut off mid-thought by max_tokens. Distinct from a
+            # limit: nothing the harness enforces stopped it, so it would
+            # otherwise be graded as if the model simply chose to stop (D35).
+            self.truncated = True
+            await self.record(
+                EventType.TRUNCATED,
+                {
+                    "step": turn.steps - 1,
+                    "output_tokens": message.output_tokens,
+                    "reasoning_tokens": message.reasoning_tokens,
+                    "detail": "finish_reason=length: the response hit max_tokens",
+                },
+                turn_index=turn.index,
+            )
         return message
 
     async def execute_calls(
@@ -460,6 +507,7 @@ class _Attempt:
             repetition=self.ctx.repetition,
             turns=self.turns,
             events=self.events,
+            truncated=self.truncated,
         )
         if not self.cancelled:
             self.assertion_results.extend(grade_scenario_scope(self.loaded, result))

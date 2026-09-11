@@ -142,7 +142,7 @@ export interface ToolCallItem {
 }
 
 export interface SimpleItem {
-  kind: "model_response" | "fault" | "retry" | "limit_exceeded" | "error" | "system" | "user_message" | "model_request" | "other";
+  kind: "model_response" | "fault" | "retry" | "limit_exceeded" | "truncated" | "error" | "system" | "user_message" | "model_request" | "other";
   event: TraceEvent;
 }
 
@@ -181,6 +181,7 @@ function itemKind(event: TraceEvent): SimpleItem["kind"] {
     case "fault":
     case "retry":
     case "limit_exceeded":
+    case "truncated":
     case "error":
     case "system":
     case "user_message":

@@ -11,6 +11,7 @@ import {
   Repeat,
   ServerCrash,
   Terminal,
+  Scissors,
   TimerOff,
   User,
   Wrench,
@@ -279,6 +280,26 @@ function SimpleEntry({ item, showRaw }: { item: SimpleItem; showRaw: boolean }) 
     return (
       <TimelineCard icon={<TimerOff className="h-4 w-4" />} tone="warn" title="Limit exceeded">
         <p className="text-sm">{readString(event.payload, "reason", "limit") ?? "The turn hit a configured limit."}</p>
+        {showRaw ? <JsonBlock value={event} className="mt-2" maxHeight="max-h-48" /> : null}
+      </TimelineCard>
+    );
+  }
+
+  if (item.kind === "truncated") {
+    // Not a harness limit: max_tokens cut the model off mid-response, so what
+    // looks like a decision to stop may be an interruption (D35).
+    return (
+      <TimelineCard icon={<Scissors className="h-4 w-4" />} tone="warn" title="Response truncated">
+        <p className="text-sm">
+          {readString(event.payload, "detail") ?? "The response hit max_tokens."}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {readNumber(event.payload, "output_tokens") ?? "?"} completion token(s)
+          {readNumber(event.payload, "reasoning_tokens") !== null
+            ? `, ${readNumber(event.payload, "reasoning_tokens")} of them reasoning`
+            : ""}
+          .
+        </p>
         {showRaw ? <JsonBlock value={event} className="mt-2" maxHeight="max-h-48" /> : null}
       </TimelineCard>
     );

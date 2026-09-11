@@ -212,6 +212,15 @@ class RunSummary(ApiModel):
             "or gave up waiting. Non-zero means the run was not fully throttled."
         ),
     )
+    truncated_attempts: int = Field(
+        default=0,
+        description=(
+            "Attempts containing at least one response that stopped on "
+            "finish_reason=length. These are graded and counted in the rates, but "
+            "the verdict may reflect a response cut off by max_tokens rather than "
+            "the model's behaviour, so a non-zero count needs review (DECISIONS D35)."
+        ),
+    )
     model_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0

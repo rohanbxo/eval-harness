@@ -175,7 +175,12 @@ class LiteLLMProvider:
         return request
 
     async def complete(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], **params: Any
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        *,
+        call_timeout_s: float | None = None,
+        **params: Any,
     ) -> AssistantMessage:
         request = self.build_request(messages, tools, **params)
         completion = self._completion_fn()
@@ -195,7 +200,15 @@ class LiteLLMProvider:
             # long as the successful call, not as long as the whole ordeal.
             started = time.monotonic()
             try:
-                response = await completion(**request)
+                if call_timeout_s is None:
+                    response = await completion(**request)
+                else:
+                    response = await asyncio.wait_for(completion(**request), timeout=call_timeout_s)
+            except TimeoutError:
+                # The model itself ran out of budget. Not retried: a retry would
+                # need a budget we have already established is gone, and the
+                # caller records this as a turn limit rather than an error.
+                raise
             except Exception as exc:
                 if attempt == self.max_attempts or not is_retryable(exc):
                     raise ProviderError(
@@ -248,6 +261,7 @@ class LiteLLMProvider:
         usage = getattr(response, "usage", None)
         input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+        reasoning_tokens = _reasoning_tokens(usage)
 
         return AssistantMessage(
             provider=served_provider(response),
@@ -256,6 +270,7 @@ class LiteLLMProvider:
             finish_reason=getattr(choice, "finish_reason", None),
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            reasoning_tokens=reasoning_tokens,
             cost_usd=self.cost_for(response, input_tokens, output_tokens),
             latency_ms=latency_ms,
             wait_ms=wait_ms,
@@ -348,3 +363,22 @@ def parse_tool_call(raw: Any, index: int) -> ToolCall:
             parse_error=f"arguments must be a JSON object, got {type(parsed).__name__}",
         )
     return ToolCall(id=call_id, name=name, arguments=parsed, raw_arguments=str(arguments))
+
+
+def _reasoning_tokens(usage: Any) -> int | None:
+    """Reasoning tokens for one call, or ``None`` when the provider is silent.
+
+    A reasoning model bills and truncates against tokens the response never
+    shows, so a completion that looks short can be near its ceiling. The count
+    lives under ``completion_tokens_details`` where OpenAI-compatible gateways
+    put it; providers that omit it report ``None`` rather than a made-up zero,
+    because "not reported" and "did not reason" size a ``max_tokens`` budget
+    very differently (DECISIONS D34).
+    """
+    details = getattr(usage, "completion_tokens_details", None)
+    if details is None:
+        return None
+    value = getattr(details, "reasoning_tokens", None)
+    if value is None and isinstance(details, dict):
+        value = details.get("reasoning_tokens")
+    return None if value is None else int(value)

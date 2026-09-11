@@ -24,12 +24,23 @@ class Provider(Protocol):
     name: str
 
     async def complete(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], **params: Any
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        *,
+        call_timeout_s: float | None = None,
+        **params: Any,
     ) -> AssistantMessage:
         """Return the next assistant message for ``messages``.
 
         ``messages`` is OpenAI-shaped; ``tools`` are OpenAI function schemas with
         the scenario's ``mock`` config already stripped.
+
+        ``call_timeout_s`` bounds **the model call itself** and nothing else. A
+        provider that queues for a rate-limit slot, or backs off after a 429,
+        must not spend that budget on waiting: the caller is measuring how long
+        the model took, not how long the harness throttled it (DECISIONS D33).
+        Exceeding it raises :class:`TimeoutError`.
         """
         ...
 
