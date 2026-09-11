@@ -58,20 +58,21 @@ models:
     api_key_env: OPENAI_API_KEY
 
   # --- Groq (free tier; every Groq-hosted model supports tool use) ---
-  # Model ids move faster here than elsewhere. The live list is
-  # GET https://api.groq.com/openai/v1/models -- check there if a run 404s.
-  # Cost is reported from LiteLLM's list price, so a free-tier run will show a
-  # number you were never billed for; treat it as relative, not as an invoice.
-  - key: groq-llama-70b
-    display_name: "Groq Llama 3.3 70B Versatile"
-    litellm_model: "groq/llama-3.3-70b-versatile"
+  # Model ids move fast here -- the Llama 3.x ids these entries first used were
+  # already retired. The live list for your account is
+  # GET https://api.groq.com/openai/v1/models; if a run 404s, check there.
+  # Cost is reported from LiteLLM's list price, so a free-tier run shows a number
+  # you were never billed for; treat it as relative, not as an invoice.
+  - key: groq-gpt-oss-120b
+    display_name: "Groq GPT-OSS 120B"
+    litellm_model: "groq/openai/gpt-oss-120b"
     params: {temperature: 0}
     supports_parallel_tool_calls: true
     api_key_env: GROQ_API_KEY
 
-  - key: groq-llama-8b
-    display_name: "Groq Llama 3.1 8B Instant"
-    litellm_model: "groq/llama-3.1-8b-instant"
+  - key: groq-gpt-oss-20b
+    display_name: "Groq GPT-OSS 20B"
+    litellm_model: "groq/openai/gpt-oss-20b"
     params: {temperature: 0}
     supports_parallel_tool_calls: true
     api_key_env: GROQ_API_KEY

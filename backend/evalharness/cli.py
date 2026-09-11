@@ -22,7 +22,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from evalharness.config import Settings, get_settings
+from evalharness.config import Settings, export_dotenv, get_settings
 from evalharness.grader.scoring import summarize_run
 from evalharness.loader import (
     LoadedScenario,
@@ -46,6 +46,18 @@ app = typer.Typer(
 )
 console = Console()
 err_console = Console(stderr=True)
+
+
+@app.callback()
+def _bootstrap() -> None:
+    """Make ``.env`` visible to provider SDKs before any command runs.
+
+    LiteLLM reads credentials from ``os.environ``, which pydantic-settings does
+    not populate, so without this the documented flow (put a key in ``.env``,
+    then ``evalharness run``) would fail to authenticate.
+    """
+    export_dotenv()
+
 
 OK = "[green]PASS[/green]"
 BAD = "[red]FAIL[/red]"

@@ -8,6 +8,7 @@ need in CI.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -67,3 +68,34 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Process-wide settings, read once."""
     return Settings()
+
+
+def export_dotenv(path: Path | None = None) -> list[str]:
+    """Copy ``.env`` into ``os.environ`` and return the names that were set.
+
+    ``Settings`` reads ``.env`` for the harness's own knobs, but provider
+    credentials are read straight from ``os.environ`` by LiteLLM, which never
+    sees pydantic's view of the file. Without this, the documented local flow --
+    put ``GROQ_API_KEY`` in ``.env``, then ``evalharness run`` -- fails to
+    authenticate, even though the same file works fine under docker compose
+    (there, ``env_file`` does this job).
+
+    A variable already present in the environment always wins, so an explicitly
+    exported key beats the file. Blank entries are skipped: ``.env.example``
+    ships every provider key as an empty placeholder, and exporting those as
+    empty strings only risks a provider SDK treating one as a real credential.
+    Only names are returned; values are never returned or logged.
+    """
+    from dotenv import dotenv_values
+
+    env_path = path if path is not None else REPO_ROOT / ".env"
+    if not env_path.is_file():
+        return []
+
+    exported: list[str] = []
+    for name, value in dotenv_values(env_path).items():
+        if not value or name in os.environ:
+            continue
+        os.environ[name] = value
+        exported.append(name)
+    return exported
