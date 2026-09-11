@@ -96,6 +96,9 @@ export function RunLauncherForm({ models, scenarios }: Props) {
       // the form surfaces, rather than recording a commit that is not the code
       // that ran.
       allow_dirty: false,
+      // Same reasoning for money: a run that cannot afford its own ceiling
+      // fails halfway and reports the shortfall as reduced coverage (D36).
+      skip_balance_check: false,
     });
   }
 

@@ -117,6 +117,13 @@ class RunCreate(ApiModel):
             "the code that ran (DECISIONS D30)."
         ),
     )
+    skip_balance_check: bool = Field(
+        default=False,
+        description=(
+            "Launch without asking the provider whether the account can afford the "
+            "worst case this run is permitted to spend (DECISIONS D36)."
+        ),
+    )
     max_cost_usd: float | None = Field(
         default=None,
         ge=0,
