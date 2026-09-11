@@ -706,9 +706,11 @@
      "running",
      "completed",
      "failed",
+     "errored",
      "cancelled"
     ],
-    "title": "AttemptStatus"
+    "title": "AttemptStatus",
+    "description": "Where an attempt ended up.\n\n``COMPLETED`` means the attempt ran to the end and was graded -- whether or\nnot it passed. ``ERRORED`` means it never produced a verdict at all, because\nthe provider gave up, a quota ran out, or the harness itself raised. The\ndistinction matters for scoring: an errored attempt is missing data, and\ncounting it as a failure would blame the model for an outage (SPEC 6.3 does\nnot say which to do; see docs/DECISIONS.md D19)."
    },
    "AttemptSummary": {
     "properties": {
@@ -1431,6 +1433,17 @@
       "title": "Attempts",
       "default": 0
      },
+     "incomplete": {
+      "type": "boolean",
+      "title": "Incomplete",
+      "description": "Some repetition never produced a verdict; treat the rates as partial.",
+      "default": false
+     },
+     "coverage": {
+      "type": "number",
+      "title": "Coverage",
+      "default": 1.0
+     },
      "pass_at_1": {
       "type": "number",
       "title": "Pass At 1",
@@ -1596,6 +1609,12 @@
      "has_config_drift": {
       "type": "boolean",
       "title": "Has Config Drift",
+      "default": false
+     },
+     "has_incomplete": {
+      "type": "boolean",
+      "title": "Has Incomplete",
+      "description": "At least one cell is missing attempts.",
       "default": false
      },
      "cells": {
@@ -2677,6 +2696,29 @@
       "title": "Completed Attempts",
       "default": 0
      },
+     "coverage": {
+      "type": "number",
+      "title": "Coverage",
+      "description": "Graded attempts / total attempts. Rates below cover only those.",
+      "default": 0.0
+     },
+     "incomplete": {
+      "type": "boolean",
+      "title": "Incomplete",
+      "description": "Some attempt never produced a verdict, so the rates are partial.",
+      "default": false
+     },
+     "scenarios_scored": {
+      "type": "integer",
+      "title": "Scenarios Scored",
+      "description": "Scenarios whose every repetition was graded (pass^k basis).",
+      "default": 0
+     },
+     "scenarios_total": {
+      "type": "integer",
+      "title": "Scenarios Total",
+      "default": 0
+     },
      "passed_attempts": {
       "type": "integer",
       "title": "Passed Attempts",
@@ -2971,6 +3013,16 @@
       "title": "Config Changed",
       "default": false
      },
+     "incomplete_a": {
+      "type": "boolean",
+      "title": "Incomplete A",
+      "default": false
+     },
+     "incomplete_b": {
+      "type": "boolean",
+      "title": "Incomplete B",
+      "default": false
+     },
      "pass_at_1_a": {
       "anyOf": [
        {
@@ -3170,6 +3222,23 @@
       "title": "Completed",
       "default": 0
      },
+     "errored": {
+      "type": "integer",
+      "title": "Errored",
+      "default": 0
+     },
+     "coverage": {
+      "type": "number",
+      "title": "Coverage",
+      "description": "Graded attempts / attempts.",
+      "default": 0.0
+     },
+     "complete": {
+      "type": "boolean",
+      "title": "Complete",
+      "description": "Every repetition was graded, so pass^k is meaningful here.",
+      "default": true
+     },
      "passed": {
       "type": "integer",
       "title": "Passed",
@@ -3183,6 +3252,7 @@
      "pass_hat_k": {
       "type": "number",
       "title": "Pass Hat K",
+      "description": "Only meaningful when `complete`; 0.0 otherwise.",
       "default": 0.0
      },
      "axis_scores": {

@@ -354,20 +354,40 @@ def run(
     table.add_column("metric")
     table.add_column("value")
     table.add_row("attempts", str(summary.attempts))
-    table.add_row("pass@1", f"{summary.pass_at_1:.2f}")
-    table.add_row("pass^k", f"{summary.pass_hat_k:.2f}")
+    table.add_row(
+        "graded",
+        f"{summary.graded_attempts}/{summary.attempts} ({summary.coverage:.0%} coverage)",
+    )
+    if summary.errored_attempts:
+        table.add_row("errored", f"[yellow]{summary.errored_attempts}[/yellow]")
+    table.add_row("pass@1", f"{summary.pass_at_1:.2f}" + ("*" if summary.incomplete else ""))
+    table.add_row(
+        "pass^k",
+        f"{summary.pass_hat_k:.2f} "
+        f"(over {summary.scenarios_scored}/{summary.scenarios_total} scenarios)",
+    )
     table.add_row("cost_usd", "unknown" if summary.cost_usd is None else f"{summary.cost_usd:.6f}")
     table.add_row("tokens", f"{summary.input_tokens} in / {summary.output_tokens} out")
     for axis, score in summary.axis_scores.items():
         table.add_row(f"axis:{axis}", f"{score:.2f}")
     console.print(table)
 
+    if summary.incomplete:
+        # Say it plainly: a partial run's rates describe the attempts that ran,
+        # and reading them as the model's score would be a mistake.
+        console.print(
+            f"[yellow]INCOMPLETE[/yellow]: {summary.errored_attempts} of {summary.attempts} "
+            "attempt(s) never produced a verdict, so the rates above (*) cover only the "
+            f"{summary.graded_attempts} that did."
+        )
+
     if out is not None:
         document = _results_document(entry, selected, k, results, include_events=include_events)
         out.write_text(json.dumps(document, indent=2), encoding="utf-8")
         console.print(f"wrote {out}")
 
-    if summary.passed_attempts != summary.attempts:
+    # A partial run is not a pass, even if everything that ran passed.
+    if summary.incomplete or summary.passed_attempts != summary.graded_attempts:
         raise typer.Exit(1)
 
 

@@ -17,13 +17,15 @@ import { formatCost, formatDateTime, formatMs, formatPercent, formatScore, forma
 import type { Attempt, AttemptStatus, RunDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const TERMINAL = new Set(["completed", "failed", "cancelled"]);
+const TERMINAL = new Set(["completed", "failed", "errored", "cancelled"]);
 
 const CELL_CLASS: Record<AttemptStatus, string> = {
   queued: "border-dashed bg-muted/40 text-muted-foreground",
   running: "border-warn bg-warn/15 text-foreground",
   completed: "border-border bg-card",
   failed: "border-fail bg-fail/15",
+  // Hatched warning, not red: nothing is known about the model here.
+  errored: "border-warn border-dashed bg-warn/15 text-foreground",
   cancelled: "border-border bg-muted/60 text-muted-foreground",
 };
 
@@ -316,9 +318,13 @@ function SummaryPanel({ run }: { run: RunDetail }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Summary</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          Summary
+          {summary.incomplete ? <Badge variant="warn">incomplete</Badge> : null}
+        </CardTitle>
         <CardDescription>
-          Scored over {summary.total_attempts ?? (run.attempts ?? []).length} attempts
+          Scored over {summary.completed_attempts ?? 0} of{" "}
+          {summary.total_attempts ?? (run.attempts ?? []).length} attempts
           {summary.passed_attempts !== null && summary.passed_attempts !== undefined
             ? ` · ${summary.passed_attempts} passed`
             : ""}
@@ -326,6 +332,18 @@ function SummaryPanel({ run }: { run: RunDetail }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        {summary.incomplete ? (
+          <InlineError
+            tone="warn"
+            message={
+              `${summary.errored_attempts ?? 0} attempt(s) never produced a verdict, so these ` +
+              `rates cover only the ${summary.completed_attempts ?? 0} that did ` +
+              `(${formatPercent(summary.coverage ?? 0, 0)} coverage). ` +
+              `pass^${run.k} is computed over the ${summary.scenarios_scored ?? 0} of ` +
+              `${summary.scenarios_total ?? 0} scenarios that ran every repetition.`
+            }
+          />
+        ) : null}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <Stat label="pass@1" value={formatPercent(summary.pass_at_1, 1)} />
           <Stat label={`pass^${run.k}`} value={formatPercent(summary.pass_hat_k, 1)} />

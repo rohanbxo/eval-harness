@@ -595,3 +595,152 @@ async def test_compare_reports_axis_deltas(client: AsyncClient) -> None:
     assert diff["axis_deltas"]["selection"] == -1.0
     # safety scored 1.0 on both sides, so it is not reported as a change.
     assert "safety" not in diff["axis_deltas"]
+
+
+# ------------------------------------------- errored attempts and coverage
+
+
+async def _seed_partial_run(
+    *, model_key: str, scenario_id: str, config_hash: str, graded: int, errored: int
+) -> str:
+    """A run where some attempts never produced a verdict (DECISIONS D19)."""
+    from evalharness.api.schemas import RunSummary, ScenarioStats
+    from evalharness.db import repository
+    from evalharness.db.session import get_database
+    from evalharness.schema.enums import AttemptStatus, RunStatus
+
+    k = graded + errored
+    stats = ScenarioStats(
+        scenario_id=scenario_id,
+        config_hash=config_hash,
+        attempts=k,
+        completed=graded,
+        errored=errored,
+        coverage=graded / k if k else 0.0,
+        complete=errored == 0,
+        passed=graded,
+        pass_at_1=1.0 if graded else 0.0,
+        pass_hat_k=1.0 if errored == 0 else 0.0,
+        axis_scores={"safety": 1.0},
+        cost_usd=0.0,
+    )
+    summary = RunSummary(
+        k=k,
+        total_attempts=k,
+        completed_attempts=graded,
+        coverage=graded / k if k else 0.0,
+        incomplete=errored > 0,
+        scenarios_scored=0 if errored else 1,
+        scenarios_total=1,
+        passed_attempts=graded,
+        errored_attempts=errored,
+        pass_at_1=1.0 if graded else 0.0,
+        pass_hat_k=1.0 if errored == 0 else 0.0,
+        axis_scores={"safety": 1.0},
+        cost_usd=0.0,
+        per_scenario=[stats],
+    )
+
+    database = get_database()
+    async with database.session() as session:
+        run = await repository.create_run(
+            session,
+            model_key=model_key,
+            litellm_model="fake/transcript",
+            params={},
+            k=k,
+            scenario_ids=[scenario_id],
+            config_hashes={scenario_id: config_hash},
+            git_commit="test",
+            harness_version="0.1.0",
+            scenario_snapshots={},
+        )
+        run_id = str(run.id)
+        for attempt in await repository.list_attempts(session, run_id):
+            if attempt.repetition > graded:
+                await repository.set_attempt_status(
+                    session, attempt.id, AttemptStatus.ERRORED, error="provider gave up"
+                )
+    async with database.session() as session:
+        await repository.set_run_summary(
+            session, run_id, summary.model_dump(mode="json"), RunStatus.COMPLETED
+        )
+    return run_id
+
+
+async def test_a_partial_run_is_reported_as_incomplete(client: AsyncClient) -> None:
+    live_hash = await _current_hash(client, "travel-booking")
+    run_id = await _seed_partial_run(
+        model_key="fake",
+        scenario_id="travel-booking",
+        config_hash=live_hash,
+        graded=1,
+        errored=2,
+    )
+
+    summary = (await client.get(f"/api/runs/{run_id}")).json()["summary"]
+    assert summary["incomplete"] is True
+    assert summary["errored_attempts"] == 2
+    assert summary["coverage"] == pytest.approx(1 / 3)
+    # Everything that ran passed, so the rate is 1.0 -- the coverage flag is what
+    # stops that being read as "this model is perfect".
+    assert summary["pass_at_1"] == 1.0
+    assert summary["scenarios_scored"] == 0
+
+
+async def test_errored_attempts_carry_their_own_status(client: AsyncClient) -> None:
+    live_hash = await _current_hash(client, "travel-booking")
+    run_id = await _seed_partial_run(
+        model_key="fake",
+        scenario_id="travel-booking",
+        config_hash=live_hash,
+        graded=1,
+        errored=1,
+    )
+    detail = (await client.get(f"/api/runs/{run_id}")).json()
+    statuses = {a["status"] for a in detail["attempts"]}
+    assert "errored" in statuses
+    errored = next(a for a in detail["attempts"] if a["status"] == "errored")
+    assert errored["error"]
+
+
+async def test_leaderboard_flags_an_incomplete_cell(client: AsyncClient) -> None:
+    live_hash = await _current_hash(client, "meeting-scheduler")
+    await _seed_partial_run(
+        model_key="fake-b",
+        scenario_id="meeting-scheduler",
+        config_hash=live_hash,
+        graded=1,
+        errored=2,
+    )
+
+    board = (await client.get("/api/leaderboard")).json()
+    row = next(r for r in board["rows"] if r["model_key"] == "fake-b")
+    cell = next(c for c in row["cells"] if c["scenario_id"] == "meeting-scheduler")
+
+    assert cell["incomplete"] is True
+    assert cell["coverage"] == pytest.approx(1 / 3)
+    assert row["has_incomplete"] is True
+
+
+async def test_compare_flags_an_incomplete_side(client: AsyncClient) -> None:
+    live_hash = await _current_hash(client, "research-injection")
+    whole = await _seed_completed_run(
+        model_key="fake",
+        scenario_id="research-injection",
+        config_hash=live_hash,
+        pass_at_1=1.0,
+        pass_hat_k=1.0,
+    )
+    partial = await _seed_partial_run(
+        model_key="fake-b",
+        scenario_id="research-injection",
+        config_hash=live_hash,
+        graded=1,
+        errored=1,
+    )
+
+    body = (await client.get("/api/compare", params={"run_a": whole, "run_b": partial})).json()
+    diff = next(d for d in body["scenarios"] if d["scenario_id"] == "research-injection")
+    assert diff["incomplete_a"] is False
+    assert diff["incomplete_b"] is True

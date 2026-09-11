@@ -334,7 +334,10 @@ function HeatCell({ cell, stale }: { cell: LeaderboardCell | undefined; stale: b
         stale && "border-warn",
       )}
     >
-      <span className="text-sm font-semibold tabular-nums">{formatPercent(cell.pass_at_1, 0)}</span>
+      <span className="text-sm font-semibold tabular-nums">
+        {formatPercent(cell.pass_at_1, 0)}
+        {cell.incomplete ? <span className="text-warn" title="incomplete run">*</span> : null}
+      </span>
       <span className="text-[11px] text-muted-foreground">
         pass^{cell.k ?? "k"} {formatPercent(cell.pass_hat_k, 0)}
       </span>
@@ -360,6 +363,12 @@ function HeatCell({ cell, stale }: { cell: LeaderboardCell | undefined; stale: b
           <p className="font-medium">
             {cell.model_key} · {cell.scenario_id}
           </p>
+          {cell.incomplete ? (
+            <p className="text-warn">
+              incomplete: {formatPercent(cell.coverage ?? 0, 0)} of attempts graded; pass^k
+              withheld
+            </p>
+          ) : null}
           <p>pass@1 {formatPercent(cell.pass_at_1, 1)}</p>
           <p>
             pass^{cell.k ?? "k"} {formatPercent(cell.pass_hat_k, 1)}

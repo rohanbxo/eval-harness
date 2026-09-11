@@ -66,7 +66,17 @@ export type EventType = (typeof EVENT_TYPES)[number];
 export const RUN_STATUSES = ["queued", "running", "completed", "failed", "cancelled"] as const;
 export type RunStatus = (typeof RUN_STATUSES)[number];
 
-export const ATTEMPT_STATUSES = ["queued", "running", "completed", "failed", "cancelled"] as const;
+// `errored` means the attempt never produced a verdict -- the provider gave up,
+// a quota ran out, or the harness raised. It is deliberately distinct from
+// `failed`, which means the attempt ran and did not pass (DECISIONS D19).
+export const ATTEMPT_STATUSES = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+  "errored",
+  "cancelled",
+] as const;
 export type AttemptStatus = (typeof ATTEMPT_STATUSES)[number];
 
 export type MockKind = "fixture" | "handler";

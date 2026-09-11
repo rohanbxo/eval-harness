@@ -1,5 +1,5 @@
 import type * as React from "react";
-import { AlertOctagon, CheckCircle2, CircleDashed, CircleSlash, Loader2, XCircle } from "lucide-react";
+import { AlertOctagon, AlertTriangle, CheckCircle2, CircleDashed, CircleSlash, Loader2, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { formatScore, prettyJson, shortHash } from "@/lib/format";
@@ -17,6 +17,7 @@ const STATUS_LABEL: Record<Status, string> = {
   running: "Running",
   completed: "Completed",
   failed: "Failed",
+  errored: "Errored",
   cancelled: "Cancelled",
 };
 
@@ -24,6 +25,9 @@ export function statusTone(status: Status, passed?: boolean | null): "pass" | "f
   if (status === "running") return "warn";
   if (status === "queued") return "muted";
   if (status === "cancelled") return "secondary";
+  // An errored attempt produced no verdict at all, so it reads as a warning
+  // about missing data rather than as a failure by the model (DECISIONS D19).
+  if (status === "errored") return "warn";
   if (status === "failed") return "fail";
   // completed: pass/fail comes from the attempt verdict when we have one.
   if (passed === true) return "pass";
@@ -40,11 +44,13 @@ export function StatusBadge({ status, passed }: { status: Status; passed?: boole
         ? CircleDashed
         : status === "cancelled"
           ? CircleSlash
-          : status === "failed"
-            ? AlertOctagon
-            : passed === false
-              ? XCircle
-              : CheckCircle2;
+          : status === "errored"
+            ? AlertTriangle
+            : status === "failed"
+              ? AlertOctagon
+              : passed === false
+                ? XCircle
+                : CheckCircle2;
 
   return (
     <Badge variant={tone === "muted" ? "muted" : tone}>

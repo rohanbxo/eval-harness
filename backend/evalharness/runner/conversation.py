@@ -454,6 +454,10 @@ class _Attempt:
         result.output_tokens = self.output_tokens
         result.duration_ms = int((time.monotonic() - started) * 1000)
         result.error = self.error
+        # A model call that failed after its retries leaves the attempt without a
+        # verdict. Recording it as a plain failure would blame the model for an
+        # outage, so it is marked ungraded and kept out of the rates entirely.
+        result.errored = self.error is not None
         self.engine.reset()
         return result
 

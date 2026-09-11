@@ -249,3 +249,41 @@ without checking it. Generated types make the *shapes* correct but cannot make a
 pick the right one, so `tsc` is blind to exactly this mistake. Runtime validation at the
 fetch boundary would close the class properly; until then, rendering every page against a
 live API is the regression net, and a build that passes is not evidence a page works.
+
+## D19 — Errored attempts are excluded from the rates, and coverage is reported
+
+**Spec gap — §6.3.** The scoring rules define pass@1 as "mean attempt pass rate" and
+pass^k as "fraction of scenarios where all k attempts passed", but say nothing about an
+attempt that never produced a verdict. §8.3 gives `attempts` a `status` and an `error`
+column, so the spec clearly anticipates attempts failing for non-model reasons — it just
+never says how they score.
+
+Reading §6.3 literally, an attempt with no verdict is not a pass, so it drags pass@1 down.
+That is wrong in a way that matters: it reports a provider outage as a capability gap.
+
+**What forced the decision.** The first real k=3 run lost 18 of 30 attempts to a
+free-tier rate limit. The summary read `pass@1 0.40` for one model and `0.20` for the
+other. Both numbers were meaningless — three of five scenarios never executed — but
+nothing in the output said so, and the leaderboard would have ranked two models on them.
+
+**Decision.**
+
+1. `AttemptStatus.ERRORED` is distinct from `FAILED`. Errored means no verdict was
+   produced: the provider gave up after its retries, a quota ran out, or the harness
+   raised. Failed means the attempt ran and did not pass.
+2. **pass@1 is computed over graded attempts only**, and `coverage`
+   (graded ÷ total) is reported beside it. Neither number means much without the other.
+3. **pass^k is withheld for any scenario that did not grade all k repetitions.** Such a
+   scenario leaves *both* sides of the ratio rather than counting as a failure, and
+   `scenarios_scored` / `scenarios_total` says how many were eligible. Scoring an
+   incomplete scenario as 0 would be a guess; scoring it as a pass would be worse.
+4. Any run with coverage below 100% is marked `incomplete`, and that flag is carried
+   through the run summary, the leaderboard cell and row, and the compare diff. The CLI
+   prints an explicit INCOMPLETE line and exits non-zero.
+5. Tokens still count every attempt, because they were genuinely spent. Cost, axis scores
+   and latency count only graded attempts.
+
+**Why not just retry harder.** Retries were also fixed (the provider's `Retry-After` is
+now honored), but that only reduces how often this happens. Any long run against a real
+provider will lose an attempt eventually, and the honest response is to say which numbers
+are missing rather than to quietly average over a hole.

@@ -301,9 +301,17 @@ export interface components {
         };
         /**
          * AttemptStatus
+         * @description Where an attempt ended up.
+         *
+         *     ``COMPLETED`` means the attempt ran to the end and was graded -- whether or
+         *     not it passed. ``ERRORED`` means it never produced a verdict at all, because
+         *     the provider gave up, a quota ran out, or the harness itself raised. The
+         *     distinction matters for scoring: an errored attempt is missing data, and
+         *     counting it as a failure would blame the model for an outage (SPEC 6.3 does
+         *     not say which to do; see docs/DECISIONS.md D19).
          * @enum {string}
          */
-        AttemptStatus: "queued" | "running" | "completed" | "failed" | "cancelled";
+        AttemptStatus: "queued" | "running" | "completed" | "failed" | "errored" | "cancelled";
         /** AttemptSummary */
         AttemptSummary: {
             /** Id */
@@ -662,6 +670,17 @@ export interface components {
              */
             attempts: number;
             /**
+             * Incomplete
+             * @description Some repetition never produced a verdict; treat the rates as partial.
+             * @default false
+             */
+            incomplete: boolean;
+            /**
+             * Coverage
+             * @default 1
+             */
+            coverage: number;
+            /**
              * Pass At 1
              * @default 0
              */
@@ -735,6 +754,12 @@ export interface components {
              * @default false
              */
             has_config_drift: boolean;
+            /**
+             * Has Incomplete
+             * @description At least one cell is missing attempts.
+             * @default false
+             */
+            has_incomplete: boolean;
             /** Cells */
             cells?: components["schemas"]["LeaderboardCell"][];
         };
@@ -1220,6 +1245,29 @@ export interface components {
              */
             completed_attempts: number;
             /**
+             * Coverage
+             * @description Graded attempts / total attempts. Rates below cover only those.
+             * @default 0
+             */
+            coverage: number;
+            /**
+             * Incomplete
+             * @description Some attempt never produced a verdict, so the rates are partial.
+             * @default false
+             */
+            incomplete: boolean;
+            /**
+             * Scenarios Scored
+             * @description Scenarios whose every repetition was graded (pass^k basis).
+             * @default 0
+             */
+            scenarios_scored: number;
+            /**
+             * Scenarios Total
+             * @default 0
+             */
+            scenarios_total: number;
+            /**
              * Passed Attempts
              * @default 0
              */
@@ -1386,6 +1434,16 @@ export interface components {
              * @default false
              */
             config_changed: boolean;
+            /**
+             * Incomplete A
+             * @default false
+             */
+            incomplete_a: boolean;
+            /**
+             * Incomplete B
+             * @default false
+             */
+            incomplete_b: boolean;
             /** Pass At 1 A */
             pass_at_1_a?: number | null;
             /** Pass At 1 B */
@@ -1451,6 +1509,23 @@ export interface components {
              */
             completed: number;
             /**
+             * Errored
+             * @default 0
+             */
+            errored: number;
+            /**
+             * Coverage
+             * @description Graded attempts / attempts.
+             * @default 0
+             */
+            coverage: number;
+            /**
+             * Complete
+             * @description Every repetition was graded, so pass^k is meaningful here.
+             * @default true
+             */
+            complete: boolean;
+            /**
              * Passed
              * @default 0
              */
@@ -1462,6 +1537,7 @@ export interface components {
             pass_at_1: number;
             /**
              * Pass Hat K
+             * @description Only meaningful when `complete`; 0.0 otherwise.
              * @default 0
              */
             pass_hat_k: number;

@@ -210,6 +210,7 @@ function CompareBody({
   const scenarios = (data.scenarios ?? []).map((diff) => ({
     scenario_id: diff.scenario_id,
     config_changed: diff.config_changed,
+    incomplete: Boolean(diff.incomplete_a || diff.incomplete_b),
     a: {
       config_hash: diff.config_hash_a,
       pass_at_1: diff.pass_at_1_a ?? null,
@@ -271,6 +272,11 @@ function CompareBody({
                           <Link href={`/scenarios/${row.scenario_id}`} className="font-mono text-xs hover:underline">
                             {row.scenario_id}
                           </Link>
+                          {row.incomplete ? (
+                            <Badge variant="warn" title="One side of this comparison is missing attempts; its rates cover only what ran.">
+                              incomplete
+                            </Badge>
+                          ) : null}
                           {configChanged ? (
                             <ConfigHashBadge
                               hash={row.b.config_hash ?? null}

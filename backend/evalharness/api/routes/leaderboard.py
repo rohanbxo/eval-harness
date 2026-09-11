@@ -107,6 +107,8 @@ async def get_leaderboard(session: SessionDep) -> LeaderboardResponse:
                 config_hash=config_hash,
                 config_changed=bool(current and config_hash and current != config_hash),
                 attempts=stats.attempts,
+                incomplete=not stats.complete,
+                coverage=stats.coverage,
                 pass_at_1=stats.pass_at_1,
                 pass_hat_k=stats.pass_hat_k,
                 axis_scores=stats.axis_scores,
@@ -137,12 +139,17 @@ async def get_leaderboard(session: SessionDep) -> LeaderboardResponse:
                 litellm_model=litellm_model,
                 scenarios_covered=len(ordered),
                 pass_at_1=sum(c.pass_at_1 for c in ordered) / len(ordered),
-                pass_hat_k=sum(c.pass_hat_k for c in ordered) / len(ordered),
+                pass_hat_k=(
+                    sum(c.pass_hat_k for c in scored) / len(scored)
+                    if (scored := [c for c in ordered if not c.incomplete])
+                    else 0.0
+                ),
                 axis_scores=_mean_axis_scores([c.axis_scores for c in ordered]),
                 cost_usd=_total_cost([c.cost_usd for c in ordered]),
                 latency_p50_ms=_mean([c.latency_p50_ms for c in ordered if c.latency_p50_ms]),
                 latency_p95_ms=_mean([c.latency_p95_ms for c in ordered if c.latency_p95_ms]),
                 has_config_drift=any(c.config_changed for c in ordered),
+                has_incomplete=any(c.incomplete for c in ordered),
                 cells=ordered,
             )
         )
@@ -261,6 +268,8 @@ async def compare_runs(
                 config_hash_a=hash_a,
                 config_hash_b=hash_b,
                 config_changed=bool(hash_a and hash_b and hash_a != hash_b),
+                incomplete_a=bool(stats_a and not stats_a.complete),
+                incomplete_b=bool(stats_b and not stats_b.complete),
                 pass_at_1_a=stats_a.pass_at_1 if stats_a else None,
                 pass_at_1_b=stats_b.pass_at_1 if stats_b else None,
                 pass_at_1_delta=_delta(

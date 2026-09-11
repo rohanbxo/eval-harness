@@ -66,12 +66,25 @@ def _percentile(values: Sequence[float], fraction: float) -> float | None:
 
 @dataclass(frozen=True)
 class RunSummary:
-    """Aggregate over one model x scenario-set x k run (SPEC 6.3)."""
+    """Aggregate over one model x scenario-set x k run (SPEC 6.3).
+
+    Rates are computed over *graded* attempts only. An attempt that errored --
+    the provider gave up, a quota ran out, the harness raised -- is missing data
+    rather than evidence about the model, so folding it into pass@1 would report
+    an outage as a capability gap. ``coverage`` says how much of the run actually
+    produced evidence, and ``incomplete`` is the flag every view should surface.
+    """
 
     attempts: int
+    graded_attempts: int
+    errored_attempts: int
+    coverage: float
+    incomplete: bool
     passed_attempts: int
     pass_at_1: float
     pass_hat_k: float
+    scenarios_scored: int
+    scenarios_total: int
     k: int
     axis_scores: dict[str, float]
     per_scenario: dict[str, dict[str, float]]
@@ -85,6 +98,12 @@ class RunSummary:
     def to_dict(self) -> dict[str, object]:
         return {
             "attempts": self.attempts,
+            "graded_attempts": self.graded_attempts,
+            "errored_attempts": self.errored_attempts,
+            "coverage": self.coverage,
+            "incomplete": self.incomplete,
+            "scenarios_scored": self.scenarios_scored,
+            "scenarios_total": self.scenarios_total,
             "passed_attempts": self.passed_attempts,
             "pass_at_1": self.pass_at_1,
             "pass_hat_k": self.pass_hat_k,
@@ -101,46 +120,77 @@ class RunSummary:
 
 
 def summarize_run(attempts: Sequence[AttemptResult], k: int) -> RunSummary:
-    """Roll attempts up into the run-level metrics of SPEC 6.3."""
+    """Roll attempts up into the run-level metrics of SPEC 6.3.
+
+    Only graded attempts feed the rates. Errored ones are counted, reported, and
+    otherwise kept out of every average.
+    """
     by_scenario: dict[str, list[AttemptResult]] = {}
     for attempt in attempts:
         by_scenario.setdefault(attempt.scenario_id, []).append(attempt)
 
-    passed = sum(1 for a in attempts if a.passed)
-    pass_at_1 = passed / len(attempts) if attempts else 0.0
-    all_pass = [s for s, group in by_scenario.items() if all(a.passed for a in group)]
-    pass_hat_k = len(all_pass) / len(by_scenario) if by_scenario else 0.0
+    graded = [a for a in attempts if a.graded]
+    errored = len(attempts) - len(graded)
+    coverage = len(graded) / len(attempts) if attempts else 0.0
+
+    passed = sum(1 for a in graded if a.passed)
+    pass_at_1 = passed / len(graded) if graded else 0.0
+
+    # pass^k asks "did this scenario pass every time?", which is only answerable
+    # when every repetition actually ran. A scenario with a missing attempt is
+    # excluded from both sides of the ratio rather than counted as a failure.
+    complete_scenarios = {
+        scenario_id: group
+        for scenario_id, group in by_scenario.items()
+        if len(group) >= k and all(a.graded for a in group)
+    }
+    all_pass = [s for s, group in complete_scenarios.items() if all(a.passed for a in group)]
+    pass_hat_k = len(all_pass) / len(complete_scenarios) if complete_scenarios else 0.0
 
     latencies = [
         float(event.latency_ms)
-        for attempt in attempts
+        for attempt in graded
         for event in attempt.events
         if event.type is EventType.MODEL_RESPONSE and event.latency_ms is not None
     ]
-    steps = [turn.steps for attempt in attempts for turn in attempt.turns]
+    steps = [turn.steps for attempt in graded for turn in attempt.turns]
 
     axis_totals: dict[str, list[float]] = {}
-    for attempt in attempts:
+    for attempt in graded:
         for axis, score in attempt.axis_scores.items():
             axis_totals.setdefault(axis, []).append(score)
 
-    per_scenario = {
-        scenario_id: {
-            "pass_at_1": sum(1 for a in group if a.passed) / len(group),
+    per_scenario: dict[str, dict[str, float]] = {}
+    for scenario_id, group in sorted(by_scenario.items()):
+        scenario_graded = [a for a in group if a.graded]
+        per_scenario[scenario_id] = {
             "attempts": float(len(group)),
+            "graded": float(len(scenario_graded)),
+            "errored": float(len(group) - len(scenario_graded)),
+            "coverage": len(scenario_graded) / len(group) if group else 0.0,
+            "pass_at_1": (
+                sum(1 for a in scenario_graded if a.passed) / len(scenario_graded)
+                if scenario_graded
+                else 0.0
+            ),
+            "complete": 1.0 if scenario_id in complete_scenarios else 0.0,
         }
-        for scenario_id, group in sorted(by_scenario.items())
-    }
 
     return RunSummary(
         attempts=len(attempts),
+        graded_attempts=len(graded),
+        errored_attempts=errored,
+        coverage=coverage,
+        incomplete=coverage < 1.0,
         passed_attempts=passed,
         pass_at_1=pass_at_1,
         pass_hat_k=pass_hat_k,
+        scenarios_scored=len(complete_scenarios),
+        scenarios_total=len(by_scenario),
         k=k,
         axis_scores={axis: statistics.fmean(v) for axis, v in sorted(axis_totals.items())},
         per_scenario=per_scenario,
-        cost_usd=total_cost(a.cost_usd for a in attempts),
+        cost_usd=total_cost(a.cost_usd for a in graded),
         input_tokens=sum(a.input_tokens for a in attempts),
         output_tokens=sum(a.output_tokens for a in attempts),
         latency_p50_ms=_percentile(latencies, 0.50),

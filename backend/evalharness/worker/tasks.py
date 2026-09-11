@@ -218,7 +218,12 @@ async def progress_for_run(
     total = sum(counts.values())
     completed = sum(
         counts.get(str(status), 0)
-        for status in (AttemptStatus.COMPLETED, AttemptStatus.FAILED, AttemptStatus.CANCELLED)
+        for status in (
+            AttemptStatus.COMPLETED,
+            AttemptStatus.FAILED,
+            AttemptStatus.ERRORED,
+            AttemptStatus.CANCELLED,
+        )
     )
     return ProgressEvent(
         type=event_type,
@@ -336,8 +341,8 @@ async def _execute_attempt(run_id: str, scenario_id: str, repetition: int) -> di
         else:
             if await watcher():
                 status = AttemptStatus.CANCELLED
-            elif result.error:
-                status = AttemptStatus.FAILED
+            elif result.errored or result.error:
+                status = AttemptStatus.ERRORED
 
         if result is None:
             result = AttemptResult(
@@ -491,7 +496,9 @@ def _final_status(attempts: Sequence[models.Attempt], *, was_cancelled: bool) ->
     statuses = [attempt.status for attempt in attempts]
     if was_cancelled or AttemptStatus.CANCELLED in statuses:
         return RunStatus.CANCELLED
-    if statuses and all(status == AttemptStatus.FAILED for status in statuses):
+    if statuses and all(
+        status in (AttemptStatus.FAILED, AttemptStatus.ERRORED) for status in statuses
+    ):
         return RunStatus.FAILED
     return RunStatus.COMPLETED
 
@@ -547,17 +554,22 @@ def build_summary(
     pass^k is the fraction of *scenarios* whose every repetition passed, which is
     the consistency number the harness exists to report.
     """
-    completed = [a for a in attempts if a.status == AttemptStatus.COMPLETED]
+    completed = [a for a in attempts if a.status.is_graded]
     passed = [a for a in completed if a.passed]
     scenario_ids = sorted({a.scenario_id for a in attempts})
 
     per_scenario: list[ScenarioStats] = []
     scenarios_all_passed = 0
+    scenarios_scored = 0
     for scenario_id in scenario_ids:
         scenario_attempts = [a for a in attempts if a.scenario_id == scenario_id]
-        scenario_completed = [a for a in scenario_attempts if a.status == AttemptStatus.COMPLETED]
+        scenario_completed = [a for a in scenario_attempts if a.status.is_graded]
         scenario_passed = [a for a in scenario_completed if a.passed]
-        all_passed = len(scenario_passed) == k and len(scenario_completed) == k
+        # pass^k is only answerable when every repetition ran; a scenario with a
+        # missing attempt leaves both sides of the ratio rather than scoring 0.
+        scenario_complete = len(scenario_completed) == len(scenario_attempts) >= k
+        all_passed = scenario_complete and len(scenario_passed) == len(scenario_completed)
+        scenarios_scored += int(scenario_complete)
         scenarios_all_passed += int(all_passed)
         scenario_latencies = [float(ms) for sid, ms in latencies if sid == scenario_id]
         scenario_steps = [float(count) for sid, count in steps if sid == scenario_id]
@@ -567,6 +579,11 @@ def build_summary(
                 config_hash=config_hashes.get(scenario_id, ""),
                 attempts=len(scenario_attempts),
                 completed=len(scenario_completed),
+                errored=len(scenario_attempts) - len(scenario_completed),
+                coverage=(
+                    len(scenario_completed) / len(scenario_attempts) if scenario_attempts else 0.0
+                ),
+                complete=scenario_complete,
                 passed=len(scenario_passed),
                 pass_at_1=(
                     len(scenario_passed) / len(scenario_completed) if scenario_completed else 0.0
@@ -587,12 +604,16 @@ def build_summary(
         k=k,
         total_attempts=len(attempts),
         completed_attempts=len(completed),
+        coverage=len(completed) / len(attempts) if attempts else 0.0,
+        incomplete=len(completed) < len(attempts),
+        scenarios_scored=scenarios_scored,
+        scenarios_total=len(scenario_ids),
         passed_attempts=len(passed),
-        failed_attempts=sum(1 for a in attempts if a.status == AttemptStatus.FAILED),
+        failed_attempts=sum(1 for a in completed if not a.passed),
         cancelled_attempts=sum(1 for a in attempts if a.status == AttemptStatus.CANCELLED),
-        errored_attempts=sum(1 for a in attempts if a.error),
+        errored_attempts=sum(1 for a in attempts if a.status == AttemptStatus.ERRORED),
         pass_at_1=len(passed) / len(completed) if completed else 0.0,
-        pass_hat_k=scenarios_all_passed / len(scenario_ids) if scenario_ids else 0.0,
+        pass_hat_k=scenarios_all_passed / scenarios_scored if scenarios_scored else 0.0,
         axis_scores=_axis_means(completed),
         cost_usd=_cost(completed),
         latency_p50_ms=percentile(all_latencies, 0.5),

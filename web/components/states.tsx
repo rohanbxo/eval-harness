@@ -88,10 +88,25 @@ export function ApiErrorState({
   );
 }
 
-export function InlineError({ message, className }: { message: string; className?: string }) {
+export function InlineError({
+  message,
+  className,
+  tone = "error",
+}: {
+  message: string;
+  className?: string;
+  /** "warn" for missing data the user should weigh, "error" for a failure. */
+  tone?: "error" | "warn";
+}) {
   return (
-    <p className={cn("flex items-center gap-2 text-sm text-destructive dark:text-fail", className)}>
-      <AlertTriangle className="h-4 w-4 shrink-0" />
+    <p
+      className={cn(
+        "flex items-start gap-2 text-sm",
+        tone === "warn" ? "text-warn" : "text-destructive dark:text-fail",
+        className,
+      )}
+    >
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <span>{message}</span>
     </p>
   );

@@ -145,3 +145,16 @@ class AttemptResult(BaseModel):
     output_tokens: int = 0
     duration_ms: int = 0
     error: str | None = None
+    errored: bool = Field(
+        default=False,
+        description=(
+            "The attempt never produced a verdict: the provider failed after its "
+            "retries, a quota ran out, or the harness raised. Such an attempt is "
+            "missing data, not evidence about the model, so scoring excludes it."
+        ),
+    )
+
+    @property
+    def graded(self) -> bool:
+        """Whether this attempt yielded a verdict that belongs in the scores."""
+        return not self.errored

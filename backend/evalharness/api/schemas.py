@@ -118,9 +118,17 @@ class ScenarioStats(ApiModel):
     config_hash: str = ""
     attempts: int = 0
     completed: int = 0
+    errored: int = 0
+    coverage: float = Field(default=0.0, description="Graded attempts / attempts.")
+    complete: bool = Field(
+        default=True,
+        description="Every repetition was graded, so pass^k is meaningful here.",
+    )
     passed: int = 0
     pass_at_1: float = 0.0
-    pass_hat_k: float = 0.0
+    pass_hat_k: float = Field(
+        default=0.0, description="Only meaningful when `complete`; 0.0 otherwise."
+    )
     axis_scores: dict[str, float] = Field(default_factory=dict)
     cost_usd: float | None = None
     latency_p50_ms: float | None = None
@@ -136,6 +144,18 @@ class RunSummary(ApiModel):
     k: int = 1
     total_attempts: int = 0
     completed_attempts: int = 0
+    coverage: float = Field(
+        default=0.0,
+        description="Graded attempts / total attempts. Rates below cover only those.",
+    )
+    incomplete: bool = Field(
+        default=False,
+        description="Some attempt never produced a verdict, so the rates are partial.",
+    )
+    scenarios_scored: int = Field(
+        default=0, description="Scenarios whose every repetition was graded (pass^k basis)."
+    )
+    scenarios_total: int = 0
     passed_attempts: int = 0
     failed_attempts: int = 0
     cancelled_attempts: int = 0
@@ -272,6 +292,11 @@ class LeaderboardCell(ApiModel):
         description="True when this cell's config_hash differs from the scenario on disk.",
     )
     attempts: int = 0
+    incomplete: bool = Field(
+        default=False,
+        description="Some repetition never produced a verdict; treat the rates as partial.",
+    )
+    coverage: float = 1.0
     pass_at_1: float = 0.0
     pass_hat_k: float = 0.0
     axis_scores: dict[str, float] = Field(default_factory=dict)
@@ -292,6 +317,9 @@ class LeaderboardRow(ApiModel):
     latency_p50_ms: float | None = None
     latency_p95_ms: float | None = None
     has_config_drift: bool = False
+    has_incomplete: bool = Field(
+        default=False, description="At least one cell is missing attempts."
+    )
     cells: list[LeaderboardCell] = Field(default_factory=list)
 
 
@@ -317,6 +345,8 @@ class ScenarioDiff(ApiModel):
     config_hash_a: str = ""
     config_hash_b: str = ""
     config_changed: bool = False
+    incomplete_a: bool = False
+    incomplete_b: bool = False
     pass_at_1_a: float | None = None
     pass_at_1_b: float | None = None
     pass_at_1_delta: float | None = None
