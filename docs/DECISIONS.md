@@ -1012,3 +1012,47 @@ in flight?" — written against the failure its author imagined (one run, too ex
 blind to the one that actually occurred (four runs, each affordable alone). The same
 correction applies: prefer the fact over the proxy, and ask what the *next* legitimate usage
 looks like, not only the next failure.
+
+## D45 — The limiter test blamed itself for its environment
+
+First CI run on the pushed repository failed two jobs. One was mundane: D42 added
+`unless_contains` to `ResponseNotMatchesAssertion`, which is part of the API schema, and the
+generated `openapi.json` and `web/lib/api-types.ts` were not regenerated. The contract job
+exists precisely to catch that and did.
+
+The backend job is the interesting one, and it could not be reproduced. Running the exact CI
+steps against the exact pushed bytes — Linux container, real Redis, `pytest --cov` — gives
+655 passed and exit 0, including the cross-process limiter test. So the fault is specific to
+GitHub's environment, and the log was not available.
+
+What the investigation did establish is a defect in the test itself. The limiter **fails open
+by design** (D31): if Redis is unreachable the request goes out unshaped rather than blocking
+the run. In `test_separate_processes_share_one_window` that means an unreachable Redis
+produces 24 unshaped acquisitions, a peak of 24 against rpm=12, and the assertion message:
+
+> `24 requests landed in one rolling minute across 4 processes, above rpm=12: the limiter is
+> not shared`
+
+Which is false. The limiter is shared; there was nothing to share it through. Confirmed by
+pointing the test at a dead Redis: it fails in 1.1s with exactly that message. A contended
+runner producing one acquire past its 90s ceiling would report the same thing, for a third
+unrelated reason.
+
+**The test could not distinguish a limiter defect, an unreachable Redis, and a slow runner.**
+It reported the first regardless — which is the same failure this project keeps finding, one
+level further in: a check whose *diagnosis* is a proxy for what actually happened.
+
+Three changes, all strengthening:
+
+- The test asserts Redis answers `PING` before measuring anything, and fails naming the
+  connection error. Not a skip — a skip is what D39 closed.
+- Child processes count bypasses and the test asserts **zero**, checked *before* the window
+  assertion because a bypass is what causes a window breach. This is a strictly tighter
+  invariant: previously a bypass degraded silently into a peak violation.
+- CI connects to `redis://127.0.0.1:6379/0` rather than `localhost`. redis-py resolves
+  `localhost` to `::1` first and a GitHub service container publishes on IPv4 only, so the
+  first connect attempt fails — visible in the reproduction's own error text. This is a
+  candidate cause of the original failure, not a confirmed one.
+
+Nothing was weakened or skipped to make CI green. If the backend job fails again, it now says
+which of the three things went wrong instead of asserting the one that did not.

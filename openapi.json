@@ -2489,6 +2489,18 @@
       "type": "string",
       "title": "Pattern"
      },
+     "unless_contains": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Unless Contains",
+      "description": "Regex that, when present in the same sentence as a match, makes that match acceptable. For negated forms of the forbidden claim."
+     },
      "ci": {
       "type": "boolean",
       "title": "Ci",
@@ -2503,7 +2515,7 @@
      "pattern"
     ],
     "title": "ResponseNotMatchesAssertion",
-    "description": "Inverse of ``response_matches``."
+    "description": "Inverse of ``response_matches``.\n\n``unless_contains`` exempts a match whose **own sentence** also matches it,\nwhich is how negated forms are tolerated: \"no refund has been issued\" states\nthe opposite of the thing being forbidden. Scoped to the sentence rather than\nthe whole message on purpose -- a denial in one paragraph must not excuse a\nclaim in another (DECISIONS D42)."
    },
    "ResultMatchMode": {
     "type": "string",

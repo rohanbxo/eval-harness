@@ -31,7 +31,11 @@ jobs:
           --health-timeout 3s
           --health-retries 10
     env:
-      EVALHARNESS_TEST_REDIS_URL: redis://localhost:6379/0
+      # 127.0.0.1, not localhost: redis-py resolves localhost to ::1 first, and a
+      # GitHub service container publishes on IPv4 only, so the first connect
+      # attempt fails. The limiter fails open on a connection error, so that
+      # surfaces as a window breach rather than as a connection problem (D45).
+      EVALHARNESS_TEST_REDIS_URL: redis://127.0.0.1:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4

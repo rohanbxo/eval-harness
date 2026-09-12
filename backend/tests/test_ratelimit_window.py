@@ -183,23 +183,55 @@ async def test_models_are_shaped_independently(clock: VirtualClock) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def _hammer(args: tuple[str, str, int, int]) -> list[float]:
-    """Child-process body: take `count` slots and report when each was admitted."""
+def _hammer(args: tuple[str, str, int, int]) -> tuple[list[float], int]:
+    """Child-process body: take `count` slots, reporting when each was admitted.
+
+    Also counts bypasses. The limiter fails open by design (D31), so an
+    unreachable or overloaded Redis does not raise here -- it quietly lets every
+    request through, and the window assertion downstream then reports "the
+    limiter is not shared" for what is actually an infrastructure fault. The
+    count is returned so the test can tell those two apart (D45).
+    """
     redis_url, model_key, rpm, count = args
     import asyncio as child_asyncio
 
     from evalharness.worker.ratelimit import RedisRateLimiter, acquire_detailed
 
-    async def run() -> list[float]:
+    async def run() -> tuple[list[float], int]:
         limiter = RedisRateLimiter(redis_url)
         stamps: list[float] = []
+        bypasses = 0
         for _ in range(count):
-            await acquire_detailed(model_key, rpm, limiter=limiter, max_wait_s=90)
+            outcome = await acquire_detailed(model_key, rpm, limiter=limiter, max_wait_s=90)
+            bypasses += int(outcome.bypassed)
             stamps.append(time.time())
         await limiter.close()
-        return stamps
+        return stamps, bypasses
 
     return child_asyncio.run(run())
+
+
+def _redis_is_reachable(url: str) -> str | None:
+    """``None`` when Redis answers, otherwise why it did not.
+
+    Checked explicitly because every other symptom of an unreachable Redis in
+    this test looks like a limiter bug (D45).
+    """
+    import asyncio as check_asyncio
+
+    async def ping() -> str | None:
+        import redis.asyncio as redis
+
+        client = redis.from_url(url)  # type: ignore[no-untyped-call]
+        try:
+            await client.ping()
+            return None
+        except Exception as exc:
+            return f"{type(exc).__name__}: {exc}"
+        finally:
+            await client.aclose()
+
+    return check_asyncio.run(ping())
 
 
 @pytest.mark.skipif(
@@ -216,14 +248,39 @@ def test_separate_processes_share_one_window() -> None:
     import multiprocessing
 
     redis_url = os.environ["EVALHARNESS_TEST_REDIS_URL"]
+
+    # Fail loudly rather than skipping: a skip here is indistinguishable from
+    # the test never having existed, which is the defect D39 closed. But fail
+    # with the *right* reason -- every downstream symptom of an unreachable
+    # Redis in this test reads as "the limiter is broken" (D45).
+    unreachable = _redis_is_reachable(redis_url)
+    assert unreachable is None, (
+        f"Redis at {redis_url} did not answer PING ({unreachable}). This test cannot "
+        "measure a shared window without it. In CI, check the service container is "
+        "healthy and its port is mapped; nothing below would be a limiter defect."
+    )
+
     model_key = f"multiproc-{int(time.time())}"
     rpm = 12
 
     with multiprocessing.Pool(4) as pool:
         results = pool.map(_hammer, [(redis_url, model_key, rpm, 6)] * 4)
 
-    stamps = [s for batch in results for s in batch]
+    stamps = [s for batch, _ in results for s in batch]
+    bypasses = sum(count for _, count in results)
     assert len(stamps) == 24
+
+    # Checked before the window assertion, because a bypass *causes* a window
+    # breach: the limiter fails open, the request goes out unshaped, and the
+    # peak then exceeds rpm for a reason that has nothing to do with sharing.
+    assert bypasses == 0, (
+        f"{bypasses} of 24 acquisitions bypassed the limiter, so this run cannot "
+        "test whether the window is shared. A bypass means Redis was unreachable "
+        "mid-run, or an acquire waited past its 90s ceiling on a contended runner "
+        "-- neither is a limiter defect, and both would otherwise surface below as "
+        "'the limiter is not shared'."
+    )
+
     peak = peak_in_any_window(stamps)
     assert peak <= rpm, (
         f"{peak} requests landed in one rolling minute across 4 processes, "
