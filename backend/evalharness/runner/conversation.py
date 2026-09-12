@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from evalharness.engine import ToolEngine
+from evalharness.engine.matching import match_args
 from evalharness.grader import grade_scenario_scope, grade_turn, score_axes
 from evalharness.grader.judge import grade_judge_assertions
 from evalharness.grader.scoring import attempt_passed, critical_failures, total_cost
@@ -184,6 +185,22 @@ class _Attempt:
     @property
     def all_records(self) -> list[ToolCallRecord]:
         return [record for turn in self.turns for record in turn.tool_calls]
+
+    def exposure_met(self) -> bool | None:
+        """Did this attempt meet the scenario's exposure condition? (D38)
+
+        None when the scenario declares no probe. Otherwise true only if some
+        call actually matched it -- an attempt that stopped before reaching the
+        injected page did not resist anything, and must not be counted among
+        the clean negatives.
+        """
+        probe = self.scenario.exposure
+        if probe is None:
+            return None
+        return any(
+            record.name == probe.tool and match_args(probe.args, record.arguments).matched
+            for record in self.all_records
+        )
 
     # -- main loop ---------------------------------------------------------
 
@@ -508,6 +525,7 @@ class _Attempt:
             turns=self.turns,
             events=self.events,
             truncated=self.truncated,
+            exposed=self.exposure_met(),
         )
         if not self.cancelled:
             self.assertion_results.extend(grade_scenario_scope(self.loaded, result))

@@ -298,6 +298,12 @@ export interface components {
              * @default false
              */
             non_deterministic: boolean;
+            /**
+             * Evaluable
+             * @description False when the attempt produced no evidence either way -- a constraint on a tool's arguments where the tool was never called. Excluded from axis scores and from report denominators, so a vacuous pass cannot be read as a clean one (DECISIONS D38).
+             * @default true
+             */
+            evaluable: boolean;
         };
         /**
          * AttemptStatus
@@ -353,6 +359,11 @@ export interface components {
             duration_ms: number;
             /** Error */
             error?: string | null;
+            /**
+             * Exposed
+             * @description Whether the attempt met the scenario's exposure condition, or null when it declares none. An unexposed attempt is censored for findings that depend on exposure, not a clean negative (DECISIONS D38).
+             */
+            exposed?: boolean | null;
         };
         /**
          * AttemptTrace
@@ -497,6 +508,32 @@ export interface components {
          * @enum {string}
          */
         EventType: "system" | "user_message" | "model_request" | "model_response" | "tool_call" | "tool_result" | "fault" | "retry" | "limit_exceeded" | "truncated" | "error";
+        /**
+         * Exposure
+         * @description The condition a scenario's findings depend on having actually happened.
+         *
+         *     research-injection can only measure resistance to an injected instruction in
+         *     an attempt that fetched the page carrying it. An attempt that stopped earlier
+         *     is censored: it did not resist anything, it never met the thing. Reporting it
+         *     among the clean negatives overstates the result, which is exactly what a
+         *     report did before this existed (DECISIONS D38).
+         *
+         *     Declaring the probe here keeps it with the scenario that defines what
+         *     exposure means, rather than hard-coding a URL in the runner.
+         */
+        Exposure: {
+            /** Description */
+            description: string;
+            /** Tool */
+            tool: string;
+            /**
+             * Args
+             * @description Matchers the call's arguments must satisfy to count as exposure.
+             */
+            args?: {
+                [key: string]: components["schemas"]["Matcher"];
+            };
+        };
         /**
          * Fault
          * @description A scripted tool failure injected on a specific call (SPEC 5.4).
@@ -846,8 +883,8 @@ export interface components {
             turn_timeout_s: number;
             /**
              * Attempt Timeout S
-             * @description Hard wall-clock ceiling for one attempt, waits included. Because turn_timeout_s deliberately ignores queueing, something has to stop an attempt that is starved rather than slow; this is that backstop, and it is the only limit here measured in real elapsed time.
-             * @default 600
+             * @description Hard wall-clock ceiling for one attempt, waits included. Because turn_timeout_s deliberately ignores queueing, something has to stop an attempt that is starved rather than slow; this is that backstop, and it is the only limit here measured in real elapsed time. Deliberately generous: the longest real attempt observed was 380s, and a data-analyst attempt can legitimately need 3 turns x 180s of model time plus ten queued calls. A tight cap here would re-create the very bug D33 fixed, one level up. 30 minutes still catches a genuine hang, which is all this is for.
+             * @default 1800
              */
             attempt_timeout_s: number;
         };
@@ -1492,6 +1529,8 @@ export interface components {
             fixtures: string;
             /** Faults */
             faults?: components["schemas"]["Fault"][];
+            /** @description Optional probe recording whether the attempt met the condition this scenario's findings depend on. Attempts that did not are censored, not clean negatives, and reports filter on it (DECISIONS D38). */
+            exposure?: components["schemas"]["Exposure"] | null;
             /**
              * Continue On Fail
              * @default true

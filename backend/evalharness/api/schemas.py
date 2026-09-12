@@ -249,6 +249,14 @@ class AttemptSummary(ApiModel):
     output_tokens: int = 0
     duration_ms: int = 0
     error: str | None = None
+    exposed: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the attempt met the scenario's exposure condition, or null "
+            "when it declares none. An unexposed attempt is censored for findings "
+            "that depend on exposure, not a clean negative (DECISIONS D38)."
+        ),
+    )
 
 
 class Run(ApiModel):
@@ -320,6 +328,15 @@ class AssertionResultOut(ApiModel):
     reason: str = ""
     details: dict[str, JsonValue] = Field(default_factory=dict)
     non_deterministic: bool = False
+    evaluable: bool = Field(
+        default=True,
+        description=(
+            "False when the attempt produced no evidence either way -- a constraint "
+            "on a tool's arguments where the tool was never called. Excluded from "
+            "axis scores and from report denominators, so a vacuous pass cannot be "
+            "read as a clean one (DECISIONS D38)."
+        ),
+    )
 
 
 class AttemptTrace(ApiModel):

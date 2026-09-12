@@ -16,6 +16,22 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # The rate limiter's real invariant -- peak requests in a rolling minute,
+    # shared across OS processes -- can only be tested against a real Redis. That
+    # test was skipped everywhere, including here, which is how a per-process
+    # window could have shipped unnoticed (DECISIONS D32, D39).
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      EVALHARNESS_TEST_REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -31,6 +47,14 @@ jobs:
         run: uv run mypy .
       - name: Pytest
         run: uv run pytest --cov --cov-report=term-missing
+      - name: The cross-process limiter test must have run, not been skipped
+        run: |
+          uv run pytest tests/test_ratelimit_window.py             -k test_separate_processes_share_one_window             -q --no-header -rN --strict-markers             | tee /tmp/limiter.txt
+          grep -qE '1 passed' /tmp/limiter.txt || {
+            echo "::error::the cross-process limiter test did not pass -- if it was"
+            echo "::error::skipped, EVALHARNESS_TEST_REDIS_URL is not reaching pytest"
+            exit 1
+          }
 
   scenarios:
     name: Validate scenarios

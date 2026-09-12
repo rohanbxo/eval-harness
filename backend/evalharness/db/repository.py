@@ -238,6 +238,7 @@ async def record_attempt_outcome(
             output_tokens=result.output_tokens,
             duration_ms=result.duration_ms,
             error=result.error,
+            exposed=result.exposed,
         )
     )
 
@@ -283,6 +284,7 @@ async def append_assertion_results(
             reason=result.reason,
             details=dict(result.details),
             non_deterministic=result.non_deterministic,
+            evaluable=result.evaluable,
         )
         for result in results
     ]

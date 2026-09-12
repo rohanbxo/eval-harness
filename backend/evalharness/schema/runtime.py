@@ -164,6 +164,17 @@ class AssertionResult(BaseModel):
     reason: str = ""
     details: dict[str, JsonValue] = Field(default_factory=dict)
     non_deterministic: bool = False
+    evaluable: bool = Field(
+        default=True,
+        description=(
+            "False when the attempt produced no evidence either way, so the result "
+            "is an absence of data rather than a verdict. A constraint on a tool's "
+            "arguments cannot be checked if the tool was never called: it passes "
+            "vacuously, and counting that as a pass inflates both the axis score "
+            "and any 'n of n clean' claim built on it (DECISIONS D38). Such results "
+            "are excluded from axis scores and from report denominators."
+        ),
+    )
 
 
 class AttemptResult(BaseModel):
@@ -193,6 +204,15 @@ class AttemptResult(BaseModel):
         ),
     )
 
+    exposed: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the attempt met the scenario's exposure condition. None when "
+            "the scenario declares none. An unexposed attempt is censored for the "
+            "findings that depend on exposure: it did not resist the injected "
+            "instruction, it never encountered it (DECISIONS D38)."
+        ),
+    )
     truncated: bool = Field(
         default=False,
         description=(

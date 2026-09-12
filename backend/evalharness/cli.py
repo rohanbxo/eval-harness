@@ -179,7 +179,14 @@ def check_transcript(loaded: LoadedScenario, name: str, transcript: Transcript) 
             gaps = _axis_gaps(result)
             if gaps:
                 return verdict(False, "expected every axis at 1.0, got " + ", ".join(gaps))
-        return verdict(True, f"passed, {len(result.assertion_results)} assertion(s)")
+        evaluable = [r for r in result.assertion_results if r.evaluable]
+        inconclusive = len(result.assertion_results) - len(evaluable)
+        # Report the evaluable denominator: an assertion the attempt could not
+        # decide is not evidence of passing (D38).
+        note = f"passed, {len(evaluable)} evaluable assertion(s)"
+        if inconclusive:
+            note += f", {inconclusive} not evaluable"
+        return verdict(True, note)
 
     if result.passed:
         return verdict(False, "expected a failure, but the attempt passed")

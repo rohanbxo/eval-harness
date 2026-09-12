@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, FlaskConical } from "lucide-react";
+import { ChevronRight, CircleSlash, FlaskConical } from "lucide-react";
 
 import { AxisBadge, JsonBlock, PassFailBadge, SeverityBadge } from "@/components/domain";
 import { Badge } from "@/components/ui/badge";
@@ -20,11 +20,24 @@ export function AssertionRow({ assertion, showRaw }: { assertion: AssertionResul
     <div
       className={cn(
         "rounded-md border px-3 py-2 text-sm",
-        assertion.passed ? "border-pass/40 bg-pass/5" : "border-fail/50 bg-fail/5",
+        // A not-evaluable assertion decided nothing, so it must not read as a
+        // green pass: it is styled neutrally and badged (D38).
+        assertion.evaluable === false
+          ? "border-muted bg-muted/30"
+          : assertion.passed
+            ? "border-pass/40 bg-pass/5"
+            : "border-fail/50 bg-fail/5",
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <PassFailBadge passed={assertion.passed} />
+        {assertion.evaluable === false ? (
+          <Badge variant="muted" title="The attempt produced no evidence either way.">
+            <CircleSlash className="h-3 w-3" />
+            not evaluable
+          </Badge>
+        ) : (
+          <PassFailBadge passed={assertion.passed} />
+        )}
         <code className="font-mono text-xs font-semibold">{assertion.assertion_id}</code>
         <Badge variant="muted" className="font-mono text-[11px]">
           {assertion.type}
@@ -43,7 +56,7 @@ export function AssertionRow({ assertion, showRaw }: { assertion: AssertionResul
         <p
           className={cn(
             "mt-2 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed",
-            assertion.passed ? "text-muted-foreground" : "text-fail",
+            assertion.passed || assertion.evaluable === false ? "text-muted-foreground" : "text-fail",
           )}
         >
           {assertion.reason}

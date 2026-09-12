@@ -158,7 +158,11 @@ function TraceHeader({
             <Stat
               label="Assertions"
               value={`${model.totals.assertionsPassed}/${model.totals.assertionsTotal}`}
-              hint="passed"
+              hint={
+                model.totals.assertionsNotEvaluable > 0
+                  ? `passed, of evaluable · ${model.totals.assertionsNotEvaluable} not evaluable`
+                  : "passed"
+              }
             />
           </div>
         ) : null}

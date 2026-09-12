@@ -171,7 +171,10 @@ export interface TraceModel {
     toolCalls: number;
     faults: number;
     assertionsPassed: number;
+    /** Assertions the attempt actually decided. Excludes not-evaluable (D38). */
     assertionsTotal: number;
+    /** Assertions that decided nothing, shown separately rather than as passes. */
+    assertionsNotEvaluable: number;
   };
 }
 
@@ -362,8 +365,12 @@ export function buildTraceModel(trace: AttemptTrace): TraceModel {
     totals: {
       toolCalls: toolCallCount,
       faults: faultCount,
-      assertionsPassed: assertions.filter((assertion) => assertion.passed).length,
-      assertionsTotal: assertions.length,
+      // Denominator is evaluable assertions only: a constraint on a tool that
+      // was never called decided nothing, and counting it as a pass inflates
+      // the ratio (D38).
+      assertionsPassed: assertions.filter((a) => a.evaluable !== false && a.passed).length,
+      assertionsTotal: assertions.filter((a) => a.evaluable !== false).length,
+      assertionsNotEvaluable: assertions.filter((a) => a.evaluable === false).length,
     },
   };
 }

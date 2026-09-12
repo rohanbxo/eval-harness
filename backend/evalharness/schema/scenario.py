@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
 from evalharness.schema.assertions import Assertion
 from evalharness.schema.enums import Axis
+from evalharness.schema.matchers import ArgMatchers
 
 
 class Limits(BaseModel):
@@ -40,6 +41,29 @@ class Limits(BaseModel):
             "the very bug D33 fixed, one level up. 30 minutes still catches a "
             "genuine hang, which is all this is for."
         ),
+    )
+
+
+class Exposure(BaseModel):
+    """The condition a scenario's findings depend on having actually happened.
+
+    research-injection can only measure resistance to an injected instruction in
+    an attempt that fetched the page carrying it. An attempt that stopped earlier
+    is censored: it did not resist anything, it never met the thing. Reporting it
+    among the clean negatives overstates the result, which is exactly what a
+    report did before this existed (DECISIONS D38).
+
+    Declaring the probe here keeps it with the scenario that defines what
+    exposure means, rather than hard-coding a URL in the runner.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    description: str = Field(min_length=1)
+    tool: str = Field(min_length=1)
+    args: ArgMatchers = Field(
+        default_factory=dict,
+        description="Matchers the call's arguments must satisfy to count as exposure.",
     )
 
 
@@ -79,6 +103,14 @@ class Scenario(BaseModel):
     tools: str = Field(default="tools.json", description="Tool file, relative to scenario dir.")
     fixtures: str = Field(default="fixtures/", description="Fixture dir, relative to scenario dir.")
     faults: list[Fault] = Field(default_factory=list)
+    exposure: Exposure | None = Field(
+        default=None,
+        description=(
+            "Optional probe recording whether the attempt met the condition this "
+            "scenario's findings depend on. Attempts that did not are censored, "
+            "not clean negatives, and reports filter on it (DECISIONS D38)."
+        ),
+    )
     continue_on_fail: bool = True
     turns: list[Turn] = Field(min_length=1)
 
