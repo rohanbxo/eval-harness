@@ -441,6 +441,36 @@ async def rate_limit_bypasses(session: AsyncSession, run_id: str) -> int:
     )
 
 
+async def committed_spend(session: AsyncSession, api_key_env: str | None = None) -> float:
+    """Worst-case dollars already promised to runs that have not finished (D44).
+
+    A balance check that ignores this is not a guard: four single-model launches
+    each see the whole balance, each fits inside it, and together they overrun
+    it. Returns the sum over queued and running runs of what each may still
+    spend -- its ceiling less what it has already spent, floored at zero.
+
+    A run with no ceiling contributes nothing, because there is no bound to add;
+    such a run is refused at launch instead (see preflight.worst_case_usd).
+    """
+    statement = select(models.Run.id, models.Run.params).where(
+        models.Run.status.in_([RunStatus.QUEUED, RunStatus.RUNNING])
+    )
+    total = 0.0
+    for run_id, params in (await session.execute(statement)).all():
+        ceiling = (params or {}).get("max_cost_usd")
+        if not isinstance(ceiling, int | float) or ceiling <= 0:
+            continue
+        spent = (
+            await session.execute(
+                select(func.coalesce(func.sum(models.Attempt.cost_usd), 0.0)).where(
+                    models.Attempt.run_id == run_id
+                )
+            )
+        ).scalar_one()
+        total += max(0.0, float(ceiling) - float(spent or 0.0))
+    return total
+
+
 async def truncated_attempts(session: AsyncSession, run_id: str) -> int:
     """Attempts with at least one response cut off by max_tokens (D35).
 

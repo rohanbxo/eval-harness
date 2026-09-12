@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from evalharness import __version__
@@ -34,7 +35,9 @@ HEARTBEAT_AFTER_IDLE_TICKS = 15
 DB_POLL_EVERY_IDLE_TICKS = 2
 
 
-def _require_affordable(entry: ModelEntry, *, max_cost_usd: float | None) -> None:
+async def _require_affordable(
+    session: AsyncSession, entry: ModelEntry, *, max_cost_usd: float | None
+) -> None:
     """Refuse a run the account cannot pay for, naming both numbers (D36)."""
     from evalharness.runner.preflight import PreflightError, check_balance
 
@@ -47,7 +50,16 @@ def _require_affordable(entry: ModelEntry, *, max_cost_usd: float | None) -> Non
     if not api_key:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{entry.api_key_env} is not set")
     try:
-        check = check_balance(api_key=api_key, models=1, max_cost_usd=max_cost_usd)
+        # Dollars promised to runs still in flight are not available to this one.
+        # Without this, four single-model launches each see the whole balance and
+        # each fit inside it, while together they overrun it (D44).
+        committed = await repository.committed_spend(session)
+        check = check_balance(
+            api_key=api_key,
+            models=1,
+            max_cost_usd=max_cost_usd,
+            committed_usd=committed,
+        )
     except PreflightError as exc:
         raise HTTPException(
             status.HTTP_402_PAYMENT_REQUIRED,
@@ -108,7 +120,7 @@ async def create_run(body: schemas.RunCreate, session: SessionDep) -> schemas.Ru
     # disguises an outage as a capability gap, so the balance is checked against
     # what this run is permitted to spend before anything is queued.
     if not body.skip_balance_check and not entry.litellm_model.startswith("fake/"):
-        _require_affordable(entry, max_cost_usd=body.max_cost_usd)
+        await _require_affordable(session, entry, max_cost_usd=body.max_cost_usd)
 
     # SPEC 8.2: the run records exactly which definition produced it.
     config_hashes: dict[str, str] = {}

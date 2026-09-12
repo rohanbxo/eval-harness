@@ -91,7 +91,7 @@ def _models_file(override: Path | None) -> Path:
     return override if override is not None else _settings().models_file
 
 
-def _check_balance(entry: ModelEntry, *, max_cost_usd: float | None) -> None:
+def _check_balance(entry: ModelEntry, *, max_cost_usd: float | None, models: int = 1) -> None:
     """Refuse to launch a run the account cannot pay for (D36).
 
     Credits running out mid-run does not fail cleanly -- it erodes coverage and
@@ -106,7 +106,7 @@ def _check_balance(entry: ModelEntry, *, max_cost_usd: float | None) -> None:
     if not api_key:
         raise _fail(f"{entry.api_key_env} is not set", code=1)
     try:
-        check = check_balance(api_key=api_key, models=1, max_cost_usd=max_cost_usd)
+        check = check_balance(api_key=api_key, models=models, max_cost_usd=max_cost_usd)
     except PreflightError as exc:
         raise _fail(
             f"pre-flight balance check failed: {exc}. Pass --skip-balance-check to launch anyway.",

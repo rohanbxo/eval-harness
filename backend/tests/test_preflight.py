@@ -178,3 +178,88 @@ def test_a_sufficient_balance_lets_the_launch_through(monkeypatch: pytest.Monkey
         lambda **kwargs: BalanceCheck(remaining_usd=50.0, worst_case_usd=8.0, sufficient=True),
     )
     _check_balance(model(), max_cost_usd=2.0)
+
+
+# --------------------------------------------------------------------------- #
+# Concurrent launches share one balance (DECISIONS D44)                        #
+# --------------------------------------------------------------------------- #
+
+
+def test_four_single_model_launches_are_refused_before_they_overrun() -> None:
+    """The hole this closes.
+
+    Each launch is one model with a $2.00 ceiling, checked against a $5.16
+    balance. Taken one at a time every launch fits, so the old per-run check
+    passed four times over while the four together could spend $8.00. Committed
+    dollars are now subtracted, so the third launch is refused -- before the
+    balance is overrun rather than after.
+    """
+    balance, ceiling = 5.16, 2.00
+    committed = 0.0
+    verdicts = []
+    for _ in range(4):
+        check = check_balance(
+            api_key="k",
+            models=1,
+            max_cost_usd=ceiling,
+            fetcher=fetcher(balance, 0.0),
+            committed_usd=committed,
+        )
+        verdicts.append(check.sufficient)
+        if check.sufficient:
+            committed += ceiling
+
+    assert verdicts == [True, True, False, False], verdicts
+    assert committed <= balance, f"${committed:.2f} committed against a ${balance:.2f} balance"
+
+
+def test_the_old_per_run_check_lets_all_four_through() -> None:
+    """Proof the assertion above has teeth.
+
+    Reproduces the check as it was -- no committed tracking -- and shows it
+    admitting four launches that together exceed the balance. If this ever
+    fails, the test above has stopped testing anything.
+    """
+    balance, ceiling = 5.16, 2.00
+    admitted = sum(
+        check_balance(
+            api_key="k", models=1, max_cost_usd=ceiling, fetcher=fetcher(balance, 0.0)
+        ).sufficient
+        for _ in range(4)
+    )
+    assert admitted == 4, "the old check admitted every launch"
+    assert admitted * ceiling > balance, (
+        f"...committing ${admitted * ceiling:.2f} against a ${balance:.2f} balance"
+    )
+
+
+def test_a_topped_up_balance_admits_the_whole_launch() -> None:
+    """$10 covers 4 x $2.00, so nothing is refused."""
+    committed = 0.0
+    for _ in range(4):
+        check = check_balance(
+            api_key="k",
+            models=1,
+            max_cost_usd=2.00,
+            fetcher=fetcher(10.00, 0.0),
+            committed_usd=committed,
+        )
+        assert check.sufficient, check.detail
+        committed += 2.00
+
+
+def test_committed_dollars_are_named_in_the_rendered_verdict() -> None:
+    check = check_balance(
+        api_key="k", models=1, max_cost_usd=2.0, fetcher=fetcher(5.16, 0.0), committed_usd=4.0
+    )
+    assert check.sufficient is False
+    assert "committed" in check.render()
+    assert "already committed" in check.detail
+    assert check.available_usd == pytest.approx(1.16)
+
+
+def test_a_multi_model_launch_still_scales_by_model_count() -> None:
+    """The CLI path: one invocation, N models, N x the ceiling."""
+    check = check_balance(api_key="k", models=4, max_cost_usd=2.0, fetcher=fetcher(5.16, 0.0))
+    assert check.sufficient is False
+    assert check.worst_case_usd == 8.0

@@ -51,12 +51,25 @@ class BalanceCheck:
     worst_case_usd: float
     sufficient: bool
     detail: str = ""
+    committed_usd: float = 0.0
+    """Worst case already promised to runs still in flight (D44). Subtracted from
+    the balance, because those dollars are spoken for."""
+
+    @property
+    def available_usd(self) -> float:
+        """What this launch may actually draw on."""
+        return self.remaining_usd - self.committed_usd
 
     def render(self) -> str:
         verdict = "ok" if self.sufficient else "INSUFFICIENT"
+        committed = (
+            f" (${self.committed_usd:.2f} committed to runs in flight)"
+            if self.committed_usd > 0
+            else ""
+        )
         return (
-            f"balance ${self.remaining_usd:.2f} vs worst case ${self.worst_case_usd:.2f}"
-            f" -- {verdict}"
+            f"balance ${self.remaining_usd:.2f}{committed} vs worst case "
+            f"${self.worst_case_usd:.2f} -- {verdict}"
         )
 
 
@@ -122,22 +135,35 @@ def check_balance(
     models: int,
     max_cost_usd: float | None,
     fetcher: Fetcher | None = None,
+    committed_usd: float = 0.0,
 ) -> BalanceCheck:
-    """Compare the account balance against the worst case. Does not raise on
-    insufficiency -- the caller decides, and must print both numbers first."""
+    """Compare what this launch may spend against what is actually available.
+
+    ``committed_usd`` is the worst case already promised to runs still in flight.
+    Ignoring it is how a per-run check passes four times over for four launches
+    that together overrun the balance (D44): each one saw the whole balance.
+
+    Does not raise on insufficiency -- the caller decides, and must print both
+    numbers first.
+    """
     worst_case = worst_case_usd(models=models, max_cost_usd=max_cost_usd)
     balance = parse_balance((fetcher or _fetch)(api_key))
     remaining = balance.remaining
+    available = remaining - committed_usd
+    sufficient = available >= worst_case
+    shortfall = worst_case - available
     return BalanceCheck(
         remaining_usd=remaining,
         worst_case_usd=worst_case,
-        sufficient=remaining >= worst_case,
+        sufficient=sufficient,
+        committed_usd=committed_usd,
         detail=(
             ""
-            if remaining >= worst_case
+            if sufficient
             else (
-                f"short by ${worst_case - remaining:.2f}: "
-                f"{models} model(s) x ${max_cost_usd:.2f} ceiling"
+                f"short by ${shortfall:.2f}: {models} model(s) x "
+                f"${max_cost_usd:.2f} ceiling against ${available:.2f} available"
+                + (f" (${committed_usd:.2f} already committed)" if committed_usd > 0 else "")
             )
         ),
     )

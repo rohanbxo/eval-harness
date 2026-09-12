@@ -982,3 +982,33 @@ Consequences adopted:
 All three were found by inspecting failures rather than by the suite, which is why
 `CLAUDE.md` now also requires reading the actual model output behind any assertion failure
 before reporting it as a capability result.
+
+## D44 — The balance check saw the whole balance four times over
+
+The affordability guard (D36) asked, per run: *can the account pay this run's ceiling?* Both
+the CLI and the API passed `models=1`, so four single-model launches each compared their own
+$2.00 against the full balance, each fit inside it, and together committed $8.00 that the
+account did not have.
+
+Caught by hand, not by the guard: launching the v3 re-run, a manual check with `models=4`
+reported `balance $5.16 vs worst case $8.00 -- INSUFFICIENT`, while the API path would have
+admitted all four launches. The guard fired correctly on the question it asked and the
+question was the wrong one.
+
+`check_balance` now takes `committed_usd` — the worst case already promised to runs still in
+flight — and compares the launch against `balance - committed` rather than against the
+balance. `repository.committed_spend()` computes it as the sum over queued and running runs
+of `ceiling - spent_so_far`, floored at zero. At $5.16 with a $2.00 ceiling the third launch
+is now refused, before the overrun rather than after; at $10.00 all four are admitted. The
+rendered verdict names the committed figure so the arithmetic is always visible.
+
+`test_the_old_per_run_check_lets_all_four_through` keeps the previous behaviour alive and
+asserts it admits all four, so the new test cannot quietly stop testing anything.
+
+**This is the fifth instance of the pattern in D43**, and the first where the proxy was not
+an assertion but a guard. The shape is identical: a cheap check standing in for the real
+question — here "can this run afford its ceiling?" for "can the account afford everything now
+in flight?" — written against the failure its author imagined (one run, too expensive) and
+blind to the one that actually occurred (four runs, each affordable alone). The same
+correction applies: prefer the fact over the proxy, and ask what the *next* legitimate usage
+looks like, not only the next failure.
