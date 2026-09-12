@@ -132,6 +132,13 @@ class Attempt(Base):
     output_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    exposed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    """Whether the attempt met the scenario's exposure condition, if it has one.
+
+    research-injection can only test resistance to an injected instruction in an
+    attempt that actually fetched the page carrying it; one that stopped earlier
+    is censored, not a clean negative (D38).
+    """
 
     run: Mapped[Run] = relationship(back_populates="attempts")
 
@@ -197,3 +204,5 @@ class AssertionResult(Base):
     reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     details: Mapped[JsonDict] = mapped_column(json_column(), default=dict, nullable=False)
     non_deterministic: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    evaluable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    """False when the attempt produced no evidence either way (D38)."""

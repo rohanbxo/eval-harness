@@ -64,6 +64,7 @@ def attempt_to_api(attempt: models.Attempt) -> schemas.AttemptSummary:
         output_tokens=attempt.output_tokens,
         duration_ms=attempt.duration_ms,
         error=attempt.error,
+        exposed=attempt.exposed,
     )
 
 
@@ -116,6 +117,7 @@ def assertion_to_api(row: models.AssertionResult) -> schemas.AssertionResultOut:
         reason=row.reason,
         details=dict(row.details or {}),
         non_deterministic=row.non_deterministic,
+        evaluable=row.evaluable,
     )
 
 

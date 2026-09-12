@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -19,6 +20,7 @@ from evalharness.api.routes.serializers import run_detail, run_to_api
 from evalharness.db import repository
 from evalharness.db.session import Database, get_database
 from evalharness.schema.enums import RunStatus
+from evalharness.schema.registry import ModelEntry
 
 LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +32,32 @@ HEARTBEAT_AFTER_IDLE_TICKS = 15
 #: Idle ticks between database polls for the run's terminal status. The stream
 #: never depends on pub/sub alone: a dropped message must not hang the UI.
 DB_POLL_EVERY_IDLE_TICKS = 2
+
+
+def _require_affordable(entry: ModelEntry, *, max_cost_usd: float | None) -> None:
+    """Refuse a run the account cannot pay for, naming both numbers (D36)."""
+    from evalharness.runner.preflight import PreflightError, check_balance
+
+    if entry.api_key_env is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"{entry.key} declares no api_key_env, so its balance cannot be checked",
+        )
+    api_key = os.environ.get(entry.api_key_env, "")
+    if not api_key:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"{entry.api_key_env} is not set")
+    try:
+        check = check_balance(api_key=api_key, models=1, max_cost_usd=max_cost_usd)
+    except PreflightError as exc:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            f"pre-flight balance check failed: {exc}",
+        ) from exc
+    if not check.sufficient:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            f"refusing to launch: {check.render()}. {check.detail}",
+        )
 
 
 @router.post(
@@ -75,6 +103,12 @@ async def create_run(body: schemas.RunCreate, session: SessionDep) -> schemas.Ru
         verify_manifest(manifest, models_file=models_path, allow_dirty=body.allow_dirty)
     except ManifestError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+    # Affordability (D36). Credits running out mid-run erodes coverage and
+    # disguises an outage as a capability gap, so the balance is checked against
+    # what this run is permitted to spend before anything is queued.
+    if not body.skip_balance_check and not entry.litellm_model.startswith("fake/"):
+        _require_affordable(entry, max_cost_usd=body.max_cost_usd)
 
     # SPEC 8.2: the run records exactly which definition produced it.
     config_hashes: dict[str, str] = {}

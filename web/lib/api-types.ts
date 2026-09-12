@@ -298,6 +298,12 @@ export interface components {
              * @default false
              */
             non_deterministic: boolean;
+            /**
+             * Evaluable
+             * @description False when the attempt produced no evidence either way -- a constraint on a tool's arguments where the tool was never called. Excluded from axis scores and from report denominators, so a vacuous pass cannot be read as a clean one (DECISIONS D38).
+             * @default true
+             */
+            evaluable: boolean;
         };
         /**
          * AttemptStatus
@@ -353,6 +359,11 @@ export interface components {
             duration_ms: number;
             /** Error */
             error?: string | null;
+            /**
+             * Exposed
+             * @description Whether the attempt met the scenario's exposure condition, or null when it declares none. An unexposed attempt is censored for findings that depend on exposure, not a clean negative (DECISIONS D38).
+             */
+            exposed?: boolean | null;
         };
         /**
          * AttemptTrace
@@ -496,7 +507,33 @@ export interface components {
          * @description Ordered audit-trail event kinds (SPEC 8.3).
          * @enum {string}
          */
-        EventType: "system" | "user_message" | "model_request" | "model_response" | "tool_call" | "tool_result" | "fault" | "retry" | "limit_exceeded" | "error";
+        EventType: "system" | "user_message" | "model_request" | "model_response" | "tool_call" | "tool_result" | "fault" | "retry" | "limit_exceeded" | "truncated" | "error";
+        /**
+         * Exposure
+         * @description The condition a scenario's findings depend on having actually happened.
+         *
+         *     research-injection can only measure resistance to an injected instruction in
+         *     an attempt that fetched the page carrying it. An attempt that stopped earlier
+         *     is censored: it did not resist anything, it never met the thing. Reporting it
+         *     among the clean negatives overstates the result, which is exactly what a
+         *     report did before this existed (DECISIONS D38).
+         *
+         *     Declaring the probe here keeps it with the scenario that defines what
+         *     exposure means, rather than hard-coding a URL in the runner.
+         */
+        Exposure: {
+            /** Description */
+            description: string;
+            /** Tool */
+            tool: string;
+            /**
+             * Args
+             * @description Matchers the call's arguments must satisfy to count as exposure.
+             */
+            args?: {
+                [key: string]: components["schemas"]["Matcher"];
+            };
+        };
         /**
          * Fault
          * @description A scripted tool failure injected on a specific call (SPEC 5.4).
@@ -830,7 +867,7 @@ export interface components {
         };
         /**
          * Limits
-         * @description Per-turn stopping conditions (SPEC 4.1).
+         * @description Stopping conditions for a turn, and a backstop for the whole attempt.
          */
         Limits: {
             /**
@@ -840,9 +877,16 @@ export interface components {
             max_steps_per_turn: number;
             /**
              * Turn Timeout S
+             * @description Budget for the model's own work in one turn. Time the harness spends queueing for a rate-limit slot or backing off after a 429 does not count against it -- that would grade the throttle, not the model (DECISIONS D33).
              * @default 120
              */
             turn_timeout_s: number;
+            /**
+             * Attempt Timeout S
+             * @description Hard wall-clock ceiling for one attempt, waits included. Because turn_timeout_s deliberately ignores queueing, something has to stop an attempt that is starved rather than slow; this is that backstop, and it is the only limit here measured in real elapsed time. Deliberately generous: the longest real attempt observed was 380s, and a data-analyst attempt can legitimately need 3 turns x 180s of model time plus ten queued calls. A tight cap here would re-create the very bug D33 fixed, one level up. 30 minutes still catches a genuine hang, which is all this is for.
+             * @default 1800
+             */
+            attempt_timeout_s: number;
         };
         /**
          * Matcher
@@ -1217,6 +1261,12 @@ export interface components {
              */
             allow_dirty: boolean;
             /**
+             * Skip Balance Check
+             * @description Launch without asking the provider whether the account can afford the worst case this run is permitted to spend (DECISIONS D36).
+             * @default false
+             */
+            skip_balance_check: boolean;
+            /**
              * Max Cost Usd
              * @description Stop the run once its cumulative cost passes this. Remaining attempts are recorded as errored, so they lower coverage rather than counting as model failures. Null disables the guard (DECISIONS D21).
              */
@@ -1407,6 +1457,12 @@ export interface components {
              */
             rate_limit_bypasses: number;
             /**
+             * Truncated Attempts
+             * @description Attempts containing at least one response that stopped on finish_reason=length. These are graded and counted in the rates, but the verdict may reflect a response cut off by max_tokens rather than the model's behaviour, so a non-zero count needs review (DECISIONS D35).
+             * @default 0
+             */
+            truncated_attempts: number;
+            /**
              * Model Calls
              * @default 0
              */
@@ -1473,6 +1529,8 @@ export interface components {
             fixtures: string;
             /** Faults */
             faults?: components["schemas"]["Fault"][];
+            /** @description Optional probe recording whether the attempt met the condition this scenario's findings depend on. Attempts that did not are censored, not clean negatives, and reports filter on it (DECISIONS D38). */
+            exposure?: components["schemas"]["Exposure"] | null;
             /**
              * Continue On Fail
              * @default true

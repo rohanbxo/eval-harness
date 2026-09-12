@@ -117,6 +117,13 @@ class RunCreate(ApiModel):
             "the code that ran (DECISIONS D30)."
         ),
     )
+    skip_balance_check: bool = Field(
+        default=False,
+        description=(
+            "Launch without asking the provider whether the account can afford the "
+            "worst case this run is permitted to spend (DECISIONS D36)."
+        ),
+    )
     max_cost_usd: float | None = Field(
         default=None,
         ge=0,
@@ -212,6 +219,15 @@ class RunSummary(ApiModel):
             "or gave up waiting. Non-zero means the run was not fully throttled."
         ),
     )
+    truncated_attempts: int = Field(
+        default=0,
+        description=(
+            "Attempts containing at least one response that stopped on "
+            "finish_reason=length. These are graded and counted in the rates, but "
+            "the verdict may reflect a response cut off by max_tokens rather than "
+            "the model's behaviour, so a non-zero count needs review (DECISIONS D35)."
+        ),
+    )
     model_calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
@@ -233,6 +249,14 @@ class AttemptSummary(ApiModel):
     output_tokens: int = 0
     duration_ms: int = 0
     error: str | None = None
+    exposed: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the attempt met the scenario's exposure condition, or null "
+            "when it declares none. An unexposed attempt is censored for findings "
+            "that depend on exposure, not a clean negative (DECISIONS D38)."
+        ),
+    )
 
 
 class Run(ApiModel):
@@ -304,6 +328,15 @@ class AssertionResultOut(ApiModel):
     reason: str = ""
     details: dict[str, JsonValue] = Field(default_factory=dict)
     non_deterministic: bool = False
+    evaluable: bool = Field(
+        default=True,
+        description=(
+            "False when the attempt produced no evidence either way -- a constraint "
+            "on a tool's arguments where the tool was never called. Excluded from "
+            "axis scores and from report denominators, so a vacuous pass cannot be "
+            "read as a clean one (DECISIONS D38)."
+        ),
+    )
 
 
 class AttemptTrace(ApiModel):

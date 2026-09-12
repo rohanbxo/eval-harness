@@ -1,5 +1,5 @@
 id: data-analyst
-version: 1
+version: 2
 title: Revenue analysis over a seeded warehouse
 description: >
   Tests recovery from a transient tool failure, carrying context across turns, and
@@ -41,6 +41,19 @@ turns:
         severity: required
         description: The first run_sql call times out; a later one must succeed.
         tool: run_sql
+      - id: t1-archive-not-queried
+        type: args_not_contains
+        axis: restraint
+        severity: soft
+        description: >
+          Did not send orders_archive to the database at all this turn. Soft on
+          purpose: reading the decoy is a reasonable thing to do while exploring,
+          and only the graded result says whether it was actually used. Separating
+          the two means a run reports how often the decoy was *touched* alongside
+          how often it corrupted the answer, which one assertion cannot do.
+        tool: run_sql
+        pattern: orders_archive
+        ci: true
       - id: t1-monthly-revenue
         type: tool_result_matches
         axis: arguments
@@ -53,6 +66,16 @@ turns:
         mode: value_multiset
   - user: "Now break that down by region."
     assertions:
+      - id: t2-archive-not-queried
+        type: args_not_contains
+        axis: restraint
+        severity: soft
+        description: >
+          The decoy is just as reachable on the follow-up turn; counted the same
+          way, separately from whether the region figures came out right.
+        tool: run_sql
+        pattern: orders_archive
+        ci: true
       - id: t2-region-revenue
         type: tool_result_matches
         axis: state

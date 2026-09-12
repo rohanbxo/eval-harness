@@ -9,6 +9,7 @@ honest and takes it from ~8s to under half a second.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from dataclasses import dataclass, field
@@ -605,3 +606,110 @@ async def test_a_hint_never_exceeds_the_cap_during_a_retry() -> None:
     sleep = SleepSpy()
     await provider(recorder, sleep).complete([], [])
     assert sleep.delays[0] == pytest.approx(MAX_RETRY_DELAY_S)
+
+
+# --------------------------------------------------------------------------- #
+# call_timeout_s bounds the model call, not the queue (DECISIONS D33)          #
+# --------------------------------------------------------------------------- #
+
+
+async def test_the_timeout_does_not_cover_the_rate_limit_wait() -> None:
+    """The regression D33 fixed, stated at the provider boundary.
+
+    The limiter hook runs inside `complete` so retries take slots too (D32). If
+    `call_timeout_s` covered it, a slow queue would kill a fast model -- which
+    is precisely what happened at rpm=12 against a 120s turn.
+    """
+    recorder = Recorder(response("done"))
+
+    async def slow_queue() -> tuple[float, bool]:
+        await asyncio.sleep(0.05)  # longer than the budget below
+        return (0.05, False)
+
+    provider = LiteLLMProvider(entry(), acompletion=recorder, sleep=SleepSpy())
+    provider.set_rate_limit_hook(slow_queue)
+
+    message = await provider.complete([], [], call_timeout_s=0.01)
+    assert message.content == "done", "a slow queue must not time out a fast model"
+
+
+async def test_the_timeout_still_bounds_a_slow_model() -> None:
+    """The budget must remain enforceable, or D33 would have removed the limit."""
+
+    async def slow_model(**kwargs: Any) -> Any:
+        await asyncio.sleep(1.0)
+        return response("too late")
+
+    provider = LiteLLMProvider(entry(), acompletion=slow_model, sleep=SleepSpy())
+    with pytest.raises(TimeoutError):
+        await provider.complete([], [], call_timeout_s=0.01)
+
+
+async def test_a_timed_out_call_is_not_retried() -> None:
+    """Retrying needs a budget already established as spent."""
+    calls = 0
+
+    async def slow_model(**kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        await asyncio.sleep(1.0)
+        return response("too late")
+
+    provider = LiteLLMProvider(entry(), acompletion=slow_model, sleep=SleepSpy(), max_attempts=5)
+    with pytest.raises(TimeoutError):
+        await provider.complete([], [], call_timeout_s=0.01)
+    assert calls == 1, f"a timeout must end the call, not restart it ({calls} attempts)"
+
+
+async def test_no_budget_means_no_timeout() -> None:
+    recorder = Recorder(response("fine"))
+    provider = LiteLLMProvider(entry(), acompletion=recorder, sleep=SleepSpy())
+    message = await provider.complete([], [], call_timeout_s=None)
+    assert message.content == "fine"
+
+
+async def test_call_timeout_never_reaches_the_provider_request() -> None:
+    """It is a harness concern; sending it as a model param would be a bug."""
+    recorder = Recorder(response("ok"))
+    provider = LiteLLMProvider(entry(), acompletion=recorder, sleep=SleepSpy())
+    await provider.complete([], [], call_timeout_s=30.0)
+    assert "call_timeout_s" not in recorder.calls[0]
+
+
+# --------------------------------------------------------------------------- #
+# Reasoning tokens (DECISIONS D34)                                             #
+# --------------------------------------------------------------------------- #
+
+
+def usage_with_reasoning(reasoning: Any) -> Any:
+    details = type("Details", (), {"reasoning_tokens": reasoning})()
+    usage = FakeUsage(prompt_tokens=10, completion_tokens=500)
+    usage.completion_tokens_details = details  # type: ignore[attr-defined]
+    return usage
+
+
+async def test_reasoning_tokens_are_captured_when_reported() -> None:
+    raw = FakeResponse(choices=[FakeChoice(message=FakeMessage(content="hi"))])
+    raw.usage = usage_with_reasoning(432)
+    provider = LiteLLMProvider(entry(), acompletion=Recorder(raw), sleep=SleepSpy())
+
+    message = await provider.complete([], [])
+    assert message.reasoning_tokens == 432
+
+
+async def test_reasoning_tokens_are_none_when_the_provider_is_silent() -> None:
+    """Not reported and did not reason size a budget very differently."""
+    provider = LiteLLMProvider(entry(), acompletion=Recorder(response("hi")), sleep=SleepSpy())
+    message = await provider.complete([], [])
+    assert message.reasoning_tokens is None
+
+
+async def test_a_dict_shaped_usage_detail_also_parses() -> None:
+    raw = FakeResponse(choices=[FakeChoice(message=FakeMessage(content="hi"))])
+    usage = FakeUsage(prompt_tokens=10, completion_tokens=500)
+    usage.completion_tokens_details = {"reasoning_tokens": 99}  # type: ignore[attr-defined]
+    raw.usage = usage
+    provider = LiteLLMProvider(entry(), acompletion=Recorder(raw), sleep=SleepSpy())
+
+    message = await provider.complete([], [])
+    assert message.reasoning_tokens == 99

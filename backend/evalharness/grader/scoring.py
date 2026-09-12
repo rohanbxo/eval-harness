@@ -19,14 +19,22 @@ from evalharness.schema.runtime import AssertionResult, AttemptResult
 
 
 def score_axes(results: Sequence[AssertionResult]) -> dict[str, float]:
-    """Passed assertions / total assertions per axis, all severities (SPEC 6.3).
+    """Passed assertions / evaluable assertions per axis, all severities (SPEC 6.3).
 
     Only axes that actually have assertions appear, so a scenario is never
     penalized for an axis it does not test.
+
+    Assertions the attempt could not decide either way are excluded rather than
+    counted as passes (D38): a constraint on an argument of a tool that was
+    never called would otherwise hand the axis a free point for work the model
+    did not do. An axis whose every assertion was inconclusive is omitted, the
+    same as an axis with no assertions -- absence of evidence, not a score.
     """
     totals: dict[str, int] = {}
     passed: dict[str, int] = {}
     for result in results:
+        if not result.evaluable:
+            continue
         axis = result.axis.value
         totals[axis] = totals.get(axis, 0) + 1
         passed[axis] = passed.get(axis, 0) + (1 if result.passed else 0)
@@ -140,6 +148,8 @@ class RunSummary:
     latency_p50_ms: float | None
     latency_p95_ms: float | None
     mean_steps_per_turn: float | None
+    truncated_attempts: int = 0
+    """Attempts holding a response that stopped on finish_reason=length (D35)."""
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -162,6 +172,7 @@ class RunSummary:
             "latency_p50_ms": self.latency_p50_ms,
             "latency_p95_ms": self.latency_p95_ms,
             "mean_steps_per_turn": self.mean_steps_per_turn,
+            "truncated_attempts": self.truncated_attempts,
         }
 
 
@@ -226,6 +237,7 @@ def summarize_run(attempts: Sequence[AttemptResult], k: int) -> RunSummary:
         attempts=len(attempts),
         graded_attempts=len(graded),
         errored_attempts=errored,
+        truncated_attempts=sum(1 for a in attempts if a.truncated),
         coverage=coverage,
         incomplete=coverage < 1.0,
         passed_attempts=passed,

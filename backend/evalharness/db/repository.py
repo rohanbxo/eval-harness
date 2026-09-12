@@ -238,6 +238,7 @@ async def record_attempt_outcome(
             output_tokens=result.output_tokens,
             duration_ms=result.duration_ms,
             error=result.error,
+            exposed=result.exposed,
         )
     )
 
@@ -283,6 +284,7 @@ async def append_assertion_results(
             reason=result.reason,
             details=dict(result.details),
             non_deterministic=result.non_deterministic,
+            evaluable=result.evaluable,
         )
         for result in results
     ]
@@ -437,6 +439,22 @@ async def rate_limit_bypasses(session: AsyncSession, run_id: str) -> int:
         for (payload,) in (await session.execute(statement)).all()
         if (payload or {}).get("rate_limit_bypassed") is True
     )
+
+
+async def truncated_attempts(session: AsyncSession, run_id: str) -> int:
+    """Attempts with at least one response cut off by max_tokens (D35).
+
+    Counted from the event trail rather than a column on ``attempts``: the
+    events are append-only and already record every truncation with the step it
+    happened on, so a derived count cannot drift from the evidence for it.
+    """
+    statement = (
+        select(func.count(func.distinct(models.Event.attempt_id)))
+        .select_from(models.Event)
+        .join(models.Attempt, models.Attempt.id == models.Event.attempt_id)
+        .where(models.Attempt.run_id == run_id, models.Event.type == "truncated")
+    )
+    return int((await session.execute(statement)).scalar_one() or 0)
 
 
 async def steps_per_turn(session: AsyncSession, run_id: str) -> list[tuple[str, int]]:

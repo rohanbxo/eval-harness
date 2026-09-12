@@ -684,6 +684,12 @@
       "type": "boolean",
       "title": "Non Deterministic",
       "default": false
+     },
+     "evaluable": {
+      "type": "boolean",
+      "title": "Evaluable",
+      "description": "False when the attempt produced no evidence either way -- a constraint on a tool's arguments where the tool was never called. Excluded from axis scores and from report denominators, so a vacuous pass cannot be read as a clean one (DECISIONS D38).",
+      "default": true
      }
     },
     "additionalProperties": false,
@@ -792,6 +798,18 @@
        }
       ],
       "title": "Error"
+     },
+     "exposed": {
+      "anyOf": [
+       {
+        "type": "boolean"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Exposed",
+      "description": "Whether the attempt met the scenario's exposure condition, or null when it declares none. An unexposed attempt is censored for findings that depend on exposure, not a clean negative (DECISIONS D38)."
      }
     },
     "additionalProperties": false,
@@ -1150,10 +1168,41 @@
      "fault",
      "retry",
      "limit_exceeded",
+     "truncated",
      "error"
     ],
     "title": "EventType",
     "description": "Ordered audit-trail event kinds (SPEC 8.3)."
+   },
+   "Exposure": {
+    "properties": {
+     "description": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Description"
+     },
+     "tool": {
+      "type": "string",
+      "minLength": 1,
+      "title": "Tool"
+     },
+     "args": {
+      "additionalProperties": {
+       "$ref": "#/components/schemas/Matcher"
+      },
+      "type": "object",
+      "title": "Args",
+      "description": "Matchers the call's arguments must satisfy to count as exposure."
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "description",
+     "tool"
+    ],
+    "title": "Exposure",
+    "description": "The condition a scenario's findings depend on having actually happened.\n\nresearch-injection can only measure resistance to an injected instruction in\nan attempt that fetched the page carrying it. An attempt that stopped earlier\nis censored: it did not resist anything, it never met the thing. Reporting it\namong the clean negatives overstates the result, which is exactly what a\nreport did before this existed (DECISIONS D38).\n\nDeclaring the probe here keeps it with the scenario that defines what\nexposure means, rather than hard-coding a URL in the runner."
    },
    "Fault": {
     "properties": {
@@ -1727,13 +1776,21 @@
       "type": "number",
       "exclusiveMinimum": 0.0,
       "title": "Turn Timeout S",
+      "description": "Budget for the model's own work in one turn. Time the harness spends queueing for a rate-limit slot or backing off after a 429 does not count against it -- that would grade the throttle, not the model (DECISIONS D33).",
       "default": 120.0
+     },
+     "attempt_timeout_s": {
+      "type": "number",
+      "exclusiveMinimum": 0.0,
+      "title": "Attempt Timeout S",
+      "description": "Hard wall-clock ceiling for one attempt, waits included. Because turn_timeout_s deliberately ignores queueing, something has to stop an attempt that is starved rather than slow; this is that backstop, and it is the only limit here measured in real elapsed time. Deliberately generous: the longest real attempt observed was 380s, and a data-analyst attempt can legitimately need 3 turns x 180s of model time plus ten queued calls. A tight cap here would re-create the very bug D33 fixed, one level up. 30 minutes still catches a genuine hang, which is all this is for.",
+      "default": 1800.0
      }
     },
     "additionalProperties": false,
     "type": "object",
     "title": "Limits",
-    "description": "Per-turn stopping conditions (SPEC 4.1)."
+    "description": "Stopping conditions for a turn, and a backstop for the whole attempt."
    },
    "Matcher": {
     "properties": {
@@ -2587,6 +2644,12 @@
       "description": "Launch even though the working tree has uncommitted changes. A comparison run otherwise refuses, because the commit it records would not describe the code that ran (DECISIONS D30).",
       "default": false
      },
+     "skip_balance_check": {
+      "type": "boolean",
+      "title": "Skip Balance Check",
+      "description": "Launch without asking the provider whether the account can afford the worst case this run is permitted to spend (DECISIONS D36).",
+      "default": false
+     },
      "max_cost_usd": {
       "anyOf": [
        {
@@ -2901,6 +2964,12 @@
       "description": "Model calls that went out unshaped because the limiter was unreachable or gave up waiting. Non-zero means the run was not fully throttled.",
       "default": 0
      },
+     "truncated_attempts": {
+      "type": "integer",
+      "title": "Truncated Attempts",
+      "description": "Attempts containing at least one response that stopped on finish_reason=length. These are graded and counted in the rates, but the verdict may reflect a response cut off by max_tokens rather than the model's behaviour, so a non-zero count needs review (DECISIONS D35).",
+      "default": 0
+     },
      "model_calls": {
       "type": "integer",
       "title": "Model Calls",
@@ -3001,6 +3070,17 @@
       },
       "type": "array",
       "title": "Faults"
+     },
+     "exposure": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Exposure"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "description": "Optional probe recording whether the attempt met the condition this scenario's findings depend on. Attempts that did not are censored, not clean negatives, and reports filter on it (DECISIONS D38)."
      },
      "continue_on_fail": {
       "type": "boolean",

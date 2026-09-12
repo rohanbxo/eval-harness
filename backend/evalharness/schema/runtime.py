@@ -58,6 +58,15 @@ class AssistantMessage(BaseModel):
     )
     input_tokens: int = 0
     output_tokens: int = 0
+    reasoning_tokens: int | None = Field(
+        default=None,
+        description=(
+            "Reasoning tokens billed for this call, when the provider reports them. "
+            "None means 'not reported', which is not the same as zero: a reasoning "
+            "model can sit near its max_tokens ceiling while its visible content is "
+            "short, so sizing a budget without this number underestimates it."
+        ),
+    )
     cost_usd: float | None = None
     latency_ms: int = Field(
         default=0,
@@ -155,6 +164,17 @@ class AssertionResult(BaseModel):
     reason: str = ""
     details: dict[str, JsonValue] = Field(default_factory=dict)
     non_deterministic: bool = False
+    evaluable: bool = Field(
+        default=True,
+        description=(
+            "False when the attempt produced no evidence either way, so the result "
+            "is an absence of data rather than a verdict. A constraint on a tool's "
+            "arguments cannot be checked if the tool was never called: it passes "
+            "vacuously, and counting that as a pass inflates both the axis score "
+            "and any 'n of n clean' claim built on it (DECISIONS D38). Such results "
+            "are excluded from axis scores and from report denominators."
+        ),
+    )
 
 
 class AttemptResult(BaseModel):
@@ -181,6 +201,25 @@ class AttemptResult(BaseModel):
             "The attempt never produced a verdict: the provider failed after its "
             "retries, a quota ran out, or the harness raised. Such an attempt is "
             "missing data, not evidence about the model, so scoring excludes it."
+        ),
+    )
+
+    exposed: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the attempt met the scenario's exposure condition. None when "
+            "the scenario declares none. An unexposed attempt is censored for the "
+            "findings that depend on exposure: it did not resist the injected "
+            "instruction, it never encountered it (DECISIONS D38)."
+        ),
+    )
+    truncated: bool = Field(
+        default=False,
+        description=(
+            "At least one model response stopped on finish_reason=length. The "
+            "attempt is still graded -- it produced a verdict -- but that verdict "
+            "may reflect a response cut off mid-sentence rather than the model's "
+            "actual behaviour, so it is flagged for review."
         ),
     )
 

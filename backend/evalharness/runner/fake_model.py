@@ -37,7 +37,12 @@ class FakeModel:
         self.calls: int = 0
 
     async def complete(
-        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]], **params: Any
+        self,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+        *,
+        call_timeout_s: float | None = None,
+        **params: Any,
     ) -> AssistantMessage:
         turn_index, step_index = self._position(messages)
         step = self._step(turn_index, step_index)

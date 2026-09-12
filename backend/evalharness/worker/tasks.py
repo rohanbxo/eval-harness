@@ -540,6 +540,7 @@ async def _finalize_run(run_id: str) -> dict[str, Any]:
             waits = await repository.model_call_waits(session, run_id)
             bypasses = await repository.rate_limit_bypasses(session, run_id)
             shaping = await repository.request_shaping(session, run_id)
+            truncated = await repository.truncated_attempts(session, run_id)
             was_cancelled = run.status == RunStatus.CANCELLED
             summary = build_summary(
                 k=run.k,
@@ -550,6 +551,7 @@ async def _finalize_run(run_id: str) -> dict[str, Any]:
                 waits=waits,
                 bypasses=bypasses,
                 shaping=shaping,
+                truncated=truncated,
             )
             status = _final_status(attempts, was_cancelled=was_cancelled)
             await repository.set_run_summary(
@@ -622,6 +624,7 @@ def build_summary(
     waits: Sequence[int] = (),
     bypasses: int = 0,
     shaping: tuple[int, int] = (0, 0),
+    truncated: int = 0,
 ) -> RunSummary:
     """Run-level scoring (SPEC 6.3).
 
@@ -696,6 +699,7 @@ def build_summary(
         queue_wait_total_ms=int(sum(waits)),
         queue_wait_p95_ms=percentile([float(w) for w in waits], 0.95),
         rate_limit_bypasses=bypasses,
+        truncated_attempts=truncated,
         http_requests=shaping[0],
         rate_limit_acquires=shaping[1],
         unshaped_requests=max(0, shaping[0] - shaping[1]),

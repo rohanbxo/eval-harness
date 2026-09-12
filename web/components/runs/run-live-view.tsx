@@ -349,6 +349,18 @@ function SummaryPanel({ run }: { run: RunDetail }) {
             }
           />
         ) : null}
+        {(summary.truncated_attempts ?? 0) > 0 ? (
+          <InlineError
+            tone="warn"
+            message={
+              `${summary.truncated_attempts} attempt(s) contain a response that stopped on ` +
+              "finish_reason=length, meaning max_tokens cut the model off mid-response. " +
+              "Those attempts are still scored, but a missing tool call in one of them may " +
+              "be an interruption rather than a decision — check the trace before reading " +
+              "it as behaviour."
+            }
+          />
+        ) : null}
         {summary.incomplete ? (
           <InlineError
             tone="warn"

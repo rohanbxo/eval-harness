@@ -59,6 +59,9 @@ export const EVENT_TYPES = [
   "fault",
   "retry",
   "limit_exceeded",
+  // A response stopped on finish_reason=length: max_tokens cut the model off.
+  // Distinct from limit_exceeded, which is a limit the harness imposed (D35).
+  "truncated",
   "error",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
