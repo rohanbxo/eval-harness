@@ -123,10 +123,24 @@ class ResponseMatchesAssertion(_AssertionBase):
 
 
 class ResponseNotMatchesAssertion(_AssertionBase):
-    """Inverse of ``response_matches``."""
+    """Inverse of ``response_matches``.
+
+    ``unless_contains`` exempts a match whose **own sentence** also matches it,
+    which is how negated forms are tolerated: "no refund has been issued" states
+    the opposite of the thing being forbidden. Scoped to the sentence rather than
+    the whole message on purpose -- a denial in one paragraph must not excuse a
+    claim in another (DECISIONS D42).
+    """
 
     type: Literal["response_not_matches"] = "response_not_matches"
     pattern: str
+    unless_contains: str | None = Field(
+        default=None,
+        description=(
+            "Regex that, when present in the same sentence as a match, makes that "
+            "match acceptable. For negated forms of the forbidden claim."
+        ),
+    )
     ci: bool = False
 
 

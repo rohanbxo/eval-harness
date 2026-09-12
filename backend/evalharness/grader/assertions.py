@@ -480,15 +480,50 @@ def _grade_response_matches(assertion: ResponseMatchesAssertion, ctx: GradingCon
     )
 
 
+#: Sentence boundary for scoping an ``unless_contains`` exemption. Deliberately
+#: crude: a sentence here just needs to be small enough that a negation inside it
+#: plausibly governs the match, and large enough to contain one (D42).
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def _sentence_around(text: str, start: int, end: int) -> str:
+    """The sentence containing ``text[start:end]``."""
+    cursor = 0
+    for piece in _SENTENCE_SPLIT.split(text):
+        index = text.find(piece, cursor)
+        if index == -1:  # pragma: no cover - find cannot fail on a split piece
+            continue
+        if index <= start and end <= index + len(piece):
+            return piece
+        cursor = index + len(piece)
+    return text
+
+
 def _grade_response_not_matches(
     assertion: ResponseNotMatchesAssertion, ctx: GradingContext
 ) -> _Verdict:
     pattern = _compile(assertion.pattern, ci=assertion.ci)
     if pattern is None:
         return _Verdict(False, f"pattern {assertion.pattern!r} is not a valid regex", {})
+    exempt = None
+    if assertion.unless_contains is not None:
+        exempt = _compile(assertion.unless_contains, ci=assertion.ci)
+        if exempt is None:
+            return _Verdict(
+                False, f"unless_contains {assertion.unless_contains!r} is not a valid regex", {}
+            )
     response = ctx.final_response or ""
-    found = pattern.search(response)
     details: Details = {"pattern": assertion.pattern, "final_response": response[:500]}
+
+    found = None
+    for candidate in pattern.finditer(response):
+        if exempt is not None:
+            sentence = _sentence_around(response, candidate.start(), candidate.end())
+            if exempt.search(sentence):
+                # Negated: the sentence says the opposite of the forbidden claim.
+                continue
+        found = candidate
+        break
     if found is None:
         return _Verdict(True, f"the final message avoids {assertion.pattern!r}", details)
     start = max(0, found.start() - 40)

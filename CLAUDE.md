@@ -89,6 +89,12 @@ Practically:
   is checkable; "the model seemed cautious" is not, unless it is quoting a specific
   message, in which case quote it.
 
+- Before reporting an assertion failure as a capability result, **read the model output
+  behind it.** Three assertions in this project measured the wrong thing and all three
+  penalised the better behaviour (DECISIONS D43); every one was found by reading a failing
+  response, none by the test suite. A failure shared across models is a suspected scenario
+  bug first.
+
 ## Guards need a negative test
 
 **Every guard, check or assertion needs a test proving it can fail.** Not a test that it
