@@ -89,6 +89,45 @@ Practically:
   is checkable; "the model seemed cautious" is not, unless it is quoting a specific
   message, in which case quote it.
 
+## Guards need a negative test
+
+**Every guard, check or assertion needs a test proving it can fail.** Not a test that it
+passes when it should — a test that it *fails* when the thing it guards against is present.
+
+This is the single most expensive lesson in the project. Of seven harness defects found,
+four were the same shape: a guard that could not fire, reporting success.
+
+- The token-bucket rate limiter passed its own unit tests while admitting twice its rate,
+  because the tests asserted the bucket's internal arithmetic rather than the thing a
+  provider measures.
+- The cross-process limiter test was `skipif`-guarded on an environment variable nothing
+  in CI set, so the only test that could catch a per-process window had never run.
+- `is_dirty()` returned `False` inside a container because `git` was absent, so the
+  dirty-tree guard reported "clean" for every comparison run ever made.
+- `args_not_contains` returned "passed" when its tool was never called, so a leak check
+  that examined nothing looked identical to a leak check that found nothing.
+
+In each case the green result was produced by the check *not running*, and nothing in the
+output distinguished that from the check passing.
+
+The pattern to follow is already in the suite:
+
+- `tests/test_ratelimit_window.py::test_a_token_bucket_fails_this_suite` keeps the replaced
+  token bucket alive purely to prove the invariant test catches it. If that test ever
+  passes, the invariant test has stopped testing anything.
+- `tests/test_turn_budget.py::test_the_old_wrapping_fails_this_suite` reconstructs the
+  previous `wait_for` arrangement and asserts the turn dies, so the guarantee cannot
+  silently stop being tested.
+
+Write the equivalent for anything that guards: keep the broken implementation, or
+construct the input the guard exists to reject, and assert it is rejected. Where a check
+depends on its environment (a service, a binary, a file on disk), CI must provide that
+environment and fail if the test skipped — a skip-guarded test with nothing satisfying the
+guard is indistinguishable from no test at all.
+
+Distinguish *evidence of absence* from *absence of evidence* in the result, too: a check
+that could not run reports `not_evaluable`, never a pass.
+
 ## Decisions
 
 Ambiguities resolved during the build are recorded in `docs/DECISIONS.md` with the
