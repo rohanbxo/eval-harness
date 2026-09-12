@@ -51,14 +51,45 @@ jobs:
         run: uv run mypy .
       - name: Pytest
         run: uv run pytest --cov --cov-report=term-missing
+      # This guard exists because the limiter test was once skipif-guarded on an
+      # env var nothing in CI set, so the only test that could catch a per-process
+      # window had never run (D32, D39). Running it when earlier steps failed is
+      # part of the guard, not a convenience: a failing Pytest step used to skip
+      # this one, and a skipped step is not reported red, so an absent result read
+      # exactly like a pass (D46). `!cancelled()` rather than `always()` because
+      # this workflow sets cancel-in-progress, and a cancelled run has genuinely
+      # not determined anything.
+      #
+      # Every branch below that is not an observed pass exits non-zero. A check
+      # that cannot determine its own answer must fail, never stay silent (D38).
       - name: The cross-process limiter test must have run, not been skipped
+        if: ${{ !cancelled() }}
+        shell: bash
         run: |
-          uv run pytest tests/test_ratelimit_window.py             -k test_separate_processes_share_one_window             -q --no-header -rN --strict-markers             | tee /tmp/limiter.txt
-          grep -qE '1 passed' /tmp/limiter.txt || {
-            echo "::error::the cross-process limiter test did not pass -- if it was"
-            echo "::error::skipped, EVALHARNESS_TEST_REDIS_URL is not reaching pytest"
+          status=0
+          uv run pytest tests/test_ratelimit_window.py -k test_separate_processes_share_one_window -q --no-header -rN --strict-markers > /tmp/limiter.txt 2>&1 || status=$?
+          cat /tmp/limiter.txt
+          if grep -qE '1 passed' /tmp/limiter.txt; then
+            echo "the cross-process limiter test ran and passed"
+            exit 0
+          fi
+          if grep -qE '[0-9]+ skipped' /tmp/limiter.txt; then
+            echo "::error::the cross-process limiter test was SKIPPED, so nothing"
+            echo "::error::checked that the rolling window is shared across"
+            echo "::error::processes. EVALHARNESS_TEST_REDIS_URL is not reaching"
+            echo "::error::pytest. This is the D39 failure, not a pass."
             exit 1
-          }
+          fi
+          if grep -qE 'no tests ran|collected 0 items' /tmp/limiter.txt; then
+            echo "::error::no test matched -k test_separate_processes_share_one_window."
+            echo "::error::If it was renamed, update this guard: a guard that matches"
+            echo "::error::nothing is indistinguishable from no guard at all."
+            exit 1
+          fi
+          echo "::error::could not determine whether the cross-process limiter test"
+          echo "::error::ran (pytest exit ${status}). An undetermined result is"
+          echo "::error::reported as a failure on purpose -- see D38, D46."
+          exit 1
 
   scenarios:
     name: Validate scenarios

@@ -1056,3 +1056,92 @@ Three changes, all strengthening:
 
 Nothing was weakened or skipped to make CI green. If the backend job fails again, it now says
 which of the three things went wrong instead of asserting the one that did not.
+## D46 — The D43 pattern, this time in the CI config
+
+Backend job red on run 34698758508, everything else green. `2 failed, 653 passed`, both
+failures in `tests/test_cli.py`, and neither was a defect in the thing being tested:
+
+```
+assert 'not found' in 'error: /home/.../nope.yaml: model registry not\nfound\n'
+assert 'nothing to validate' in '...absent -- nothingto validate'
+```
+
+The CLI said exactly the right thing both times. What failed was **the assertion's model of
+the output** — the same shape as D43, one layer out from the grader: a substring check
+standing in for "did the command say this", which is only the same question while nothing
+wraps.
+
+Rich wraps to the console width. The width that breaks a line inside an asserted phrase is a
+function of the *absolute path length in the message*, so the suite passed against a local
+checkout (57-char path) and failed on a runner (53-char path) at width 81. Sweeping widths
+60..140 against the real `list-models` error, counting widths at which the assertion fails:
+
+| assertion form | widths failing, 60..140 |
+|---|---|
+| `"not found" in output` (raw) | 6 |
+| `"not found" in flat(output)`, `flat` deleting the newline | 1 |
+| `"not found" in flat(output)`, `flat` collapsing whitespace | 0 |
+
+### The obvious fix was also a proxy
+
+`flat()` deleted the newline. A wrap *stands in for* a space, so deleting it splices the
+words either side together — that is the `nothingto validate` failure. Collapsing whitespace
+instead fixes both CI failures and **breaks a third test that was passing**, because Rich
+wraps in two different ways:
+
+| wrap kind | Rich emits | delete the newline | collapse the whitespace |
+|---|---|---|---|
+| word wrap, breaks *at* a space | `registry not`⏎`found` | `notfound` ✗ | `not found` ✓ |
+| hard break, token too long to fit | `scenario.`⏎`yaml` | `scenario.yaml` ✓ | `scenario. yaml` ✗ |
+
+Each repair is correct for one kind and wrong for the other, and the output does not record
+which kind produced a given break. **No post-processing of wrapped text can undo both**, so
+every version of `flat()` is a proxy that works until the path length moves.
+
+Adopted: stop the wrapping instead. `invoke()` sets `COLUMNS=10000`, Rich re-reads `COLUMNS`
+from `os.environ` on each render, so it reaches the module-level `Console` built at import
+time. `flat()` stays, now honest about its job — joining output that is *genuinely* more than
+one line — and correct for it. Four assertions with multi-word needles were reading raw
+output, not one; all four now go through `flat()`.
+
+Two guards, because a wrap-sensitive suite cannot be trusted to notice it has become
+wrap-sensitive again:
+
+- `test_the_cli_output_is_never_wrapped` asserts the one-line error renders as one line, then
+  proves the check can fail by finding a width that splits `not found`. It *derives* that
+  width from the current path length rather than hardcoding CI's 81 — the first attempt did
+  hardcode 81, passed on CI's path length and failed locally, which is the defect itself
+  reappearing inside its own regression test.
+- `test_the_old_flat_fails_this_suite` keeps the newline-deleting one-liner alive and asserts
+  it fails on both verbatim CI strings.
+
+### The half that had no result at all
+
+The step after Pytest is `The cross-process limiter test must have run, not been skipped` —
+the CI-side guard from D39, which exists because that test was once `skipif`-guarded on an
+env var nothing set. On this run it **did not execute**: a failing step skips the rest, and a
+skipped step is not reported red. In the job's step list its result was absent, and absent
+rendered the same as fine.
+
+So the guard built to stop a check reporting success while not running had itself stopped
+running while not reporting anything. Of eight harness defects now found, five are this
+shape — and this is the first one **in the CI configuration rather than in the code**, which
+is the part of the repo no test covers.
+
+Adopted:
+
+1. **`if: ${{ !cancelled() }}` on the guard step.** It reports its own state whatever Pytest
+   did. `!cancelled()` and not `always()`: this workflow sets `cancel-in-progress`, and a
+   cancelled run has genuinely determined nothing.
+2. **Only an observed pass exits zero.** Skipped, no-test-matched, and undetermined each exit
+   1 with their own message, so the reason survives into the log. This is D38 applied to a
+   shell script: a vacuous pass is not a pass, and a check that cannot determine its own
+   answer must fail rather than stay quiet.
+3. **The guard's branches are exercised, not assumed.** All seven canned pytest outputs — the
+   pass, a skip, `no tests ran`, `collected 0 items`, a failure, empty output, a collection
+   error — are run against the step's own script and asserted on their exit codes. A `grep`
+   nobody has fed the rejectable input to is not yet a guard.
+
+Numbers above come from running the real CLI through `CliRunner` at each width with CI's
+53-character path, and from `gh run view 34698758508 --job 103566683696 --log`. Not from the
+database: this was a CI log, not a harness run.

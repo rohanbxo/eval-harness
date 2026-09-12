@@ -25,7 +25,13 @@ runner = CliRunner()
 
 _ANSI = re.compile(r"\[[0-9;]*m")
 
-_PLAIN_TERMINAL = {"TERM": "dumb", "NO_COLOR": "1"}
+# COLUMNS is the fix for D46, not a convenience: Rich wraps to the console
+# width, and a wrap lands wherever the width and the absolute path length
+# happen to put it -- which differs between a checkout and a CI runner. A
+# width nothing reaches means these assertions test what was said. Rich reads
+# COLUMNS from os.environ on each render, so CliRunner's env reaches the
+# module-level Console built at import time.
+_PLAIN_TERMINAL = {"TERM": "dumb", "NO_COLOR": "1", "COLUMNS": "10000"}
 
 
 def invoke(*args: str) -> tuple[int, str]:
@@ -40,8 +46,20 @@ def flat(output: str) -> str:
     Rich fixes its width when the console is built, so a long path or phrase is
     wrapped before these tests can widen anything. Joining the lines back up
     keeps the assertions about what was said, not where it broke.
+
+    Joining with a space, not by deletion: a wrap stands in for a space, so
+    deleting the newline splices the words either side together ("nothing" +
+    "to validate" -> "nothingto validate"). That was one of the two D46 CI
+    failures.
+
+    This is only safe because `invoke()` renders unwrapped. Rich *hard-breaks* a
+    token too long to fit, with no space to break at, and collapsing that inserts
+    a space that was never there ("scenario.yaml" -> "scenario. yaml"). Undoing a
+    wrap after the fact cannot get both cases right, which is why COLUMNS above
+    stops the wrapping instead. Keep this for output that is genuinely more than
+    one line.
     """
-    return output.replace("\n", "")
+    return re.sub(r"\s+", " ", output)
 
 
 def with_config(*args: str) -> tuple[int, str]:
@@ -77,7 +95,7 @@ def test_list_models_reads_the_real_registry() -> None:
 def test_list_models_reports_a_missing_registry_clearly() -> None:
     code, output = invoke("list-models", "--models-file", str(REPO_ROOT / "nope.yaml"))
     assert code != 0
-    assert "not found" in output
+    assert "not found" in flat(output)
 
 
 def test_list_models_reports_a_malformed_registry(tmp_path: Path) -> None:
@@ -96,7 +114,7 @@ def test_validate_passes_for_every_shipped_scenario() -> None:
     """The whole point of `validate`: goldens pass, fail_* fail on exactly their ids."""
     code, output = invoke("validate", "--scenarios-dir", str(SCENARIOS_DIR))
     assert code == 0, output
-    assert "all checks passed" in output
+    assert "all checks passed" in flat(output)
 
 
 @pytest.mark.parametrize(
@@ -128,7 +146,7 @@ def test_validate_rejects_an_unknown_scenario() -> None:
 def test_validate_on_an_empty_directory_says_so_instead_of_crashing(tmp_path: Path) -> None:
     code, output = invoke("validate", "--scenarios-dir", str(tmp_path))
     assert code == 0
-    assert "no scenarios" in output.lower()
+    assert "no scenarios" in flat(output).lower()
 
 
 def test_validate_on_a_missing_directory_says_so(tmp_path: Path) -> None:
@@ -235,7 +253,7 @@ def test_run_repeats_k_times() -> None:
     assert code == 0, output
     # One line per repetition, 0-indexed.
     for repetition in range(3):
-        assert f"travel-booking #{repetition}" in output
+        assert f"travel-booking #{repetition}" in flat(output)
 
 
 def test_run_accepts_a_comma_separated_scenario_list(tmp_path: Path) -> None:
@@ -348,3 +366,87 @@ def test_cli_import_does_not_pull_in_the_database_stack() -> None:
     assert completed.stdout.strip() == "", (
         f"importing the CLI pulled in heavy modules: {completed.stdout.strip()}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# The wrap guard itself                                                       #
+# --------------------------------------------------------------------------- #
+
+
+def test_the_old_flat_fails_this_suite() -> None:
+    """Proof that `flat()` is what makes the wrapped-output assertions hold (D46).
+
+    `flat()` used to delete the newline instead of replacing it with a space.
+    Rich breaks a line *at* a space, so deleting it splices the words either
+    side together, and the assertion fails on output that said exactly the right
+    thing. Both strings below are verbatim from the CI run that caught it
+    (run 34698758508).
+
+    Keeping the old one-liner alive here means the replacement cannot silently
+    stop being the thing that works: if this test ever fails, `flat()` has
+    regressed to something wrap-sensitive.
+    """
+
+    def flat_old(output: str) -> str:
+        return output.replace("\n", "")
+
+    wrapped_not_found = (
+        "error: /home/runner/work/eval-harness/eval-harness/nope.yaml: model registry not\nfound\n"
+    )
+    wrapped_nothing_to_validate = (
+        "no scenarios directory at /tmp/pytest-of-runner/pytest-0/"
+        "test_validate_on_a_missing_dir0/absent -- nothing\nto validate\n"
+    )
+
+    # Asserting on the raw output is what test_list_models_reports_a_missing_
+    # registry_clearly did before the fix, and the wrap defeats it.
+    assert "not found" not in wrapped_not_found
+
+    # The old helper splices the words across the break. This is the CI failure.
+    assert "not found" not in flat_old(wrapped_not_found)
+    assert "nothing to validate" not in flat_old(wrapped_nothing_to_validate)
+
+    # The replacement restores the space the wrap stood in for.
+    assert "not found" in flat(wrapped_not_found)
+    assert "nothing to validate" in flat(wrapped_nothing_to_validate)
+
+
+def test_the_cli_output_is_never_wrapped() -> None:
+    """Every substring assertion in this file depends on output not being wrapped.
+
+    Without this, the suite passes or fails on the console width and the length
+    of the absolute path in the message -- which is exactly how D46 passed
+    locally and failed on CI at width 81.
+
+    The second half is the proof the check can fail: the same command at CI's
+    width reproduces the original failure, so this test cannot quietly stop
+    testing anything.
+    """
+    missing = REPO_ROOT / "nope.yaml"
+    args = ["list-models", "--models-file", str(missing)]
+
+    code, output = invoke(*args)
+    assert code != 0
+    # The message is one line. More than one newline means Rich wrapped it.
+    assert output.count("\n") == 1, f"invoke() wrapped its output: {output!r}"
+
+    def at_width(width: int) -> str:
+        result = runner.invoke(
+            app, args, catch_exceptions=False, env={**_PLAIN_TERMINAL, "COLUMNS": str(width)}
+        )
+        return _ANSI.sub("", result.output)
+
+    # Proof the check can fail. The width that breaks the line inside "not found"
+    # is a function of the path length -- 81 on CI, something else here, which is
+    # the whole defect -- so derive it rather than hardcoding CI's.
+    fills_the_line = len(f"error: {missing}: model registry not")
+    splitting_widths = [
+        width
+        for width in range(fills_the_line - 2, fills_the_line + 3)
+        if "not found" not in at_width(width)
+    ]
+    assert splitting_widths, (
+        "no console width split 'not found', so the guard above proves nothing "
+        f"(tried {fills_the_line - 2}..{fills_the_line + 2})"
+    )
+    assert at_width(splitting_widths[0]).count("\n") > 1
