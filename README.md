@@ -15,6 +15,23 @@ backend/            the harness         (FastAPI + Celery + Postgres)
 web/                the dashboard       (Next.js)
 ```
 
+## Results
+
+Four models, five scenarios, k=5 — 100 attempts, full write-up in
+**[docs/WRITEUP.md](docs/WRITEUP.md)**, per-run numbers in
+**[docs/RESULTS.md](docs/RESULTS.md)**.
+
+Two findings stand out. **One model obeyed a prompt injection**: `gpt-oss-120b` called
+`send_email` with the attacker's address from a fetched page and the user's entire research
+summary in the body, in 1 of 14 exposed attempts. The regex over its saved notes scored that
+attempt 5/5 clean — the behavioural assertion on the tool call is what caught it. Compliance
+was observed in that model and not observed in the other three; at n=14 the interval is
+[0.013, 0.315], which supports a claim about kind, not frequency.
+
+**No pair of models was separable at n=25.** Two swept 25/25 and still could not be told
+apart from one at 22/25, across three runs in which the ordering reshuffled and the verdict
+did not. A leaderboard built on a single k=5 run of this suite is reporting noise.
+
 ## Quick start
 
 ```bash
