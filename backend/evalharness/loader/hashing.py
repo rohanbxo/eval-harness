@@ -8,6 +8,7 @@ repo is developed on Windows and run in Linux containers.
 from __future__ import annotations
 
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 
@@ -48,6 +49,45 @@ def compute_config_hash(directory: Path) -> str:
     return digest.hexdigest()
 
 
+#: Commit stamped into the image at build time (DECISIONS D41).
+#:
+#: A container has no .git and no git binary, so asking git inside one always
+#: fails -- which made `git_commit` return "unknown" and, far worse, made
+#: `is_dirty` return False through its "not a checkout" path. The dirty-tree
+#: guard therefore could not fire on the API path, which is the path every
+#: comparison run uses. The build stamps the answer in instead.
+COMMIT_ENV = "EVALHARNESS_GIT_COMMIT"
+
+
+def _stamped_commit() -> str | None:
+    """The build-time commit, or None when nothing stamped one."""
+    value = os.environ.get(COMMIT_ENV, "").strip()
+    return value or None
+
+
+def provenance_is_known(repo_root: Path) -> bool:
+    """Whether the commit this code came from can be established at all.
+
+    False means neither a stamp nor a usable git checkout. Callers must refuse
+    to launch a comparison run rather than record "unknown" and continue: a run
+    whose code cannot be identified is not comparable to one whose can (D41).
+    """
+    if _stamped_commit() is not None:
+        return True
+    try:
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return True
+
+
 def is_dirty(repo_root: Path) -> bool:
     """Whether the working tree has uncommitted changes.
 
@@ -55,6 +95,11 @@ def is_dirty(repo_root: Path) -> bool:
     definition. From a dirty tree that record is a lie: the commit named does not
     describe the code that ran (DECISIONS D30).
     """
+    stamped = _stamped_commit()
+    if stamped is not None:
+        # The image was built from a tree the builder described; trust that
+        # rather than asking git inside a container that has none.
+        return stamped.endswith("-dirty")
     try:
         status = subprocess.run(
             ["git", "status", "--porcelain"],
@@ -70,7 +115,15 @@ def is_dirty(repo_root: Path) -> bool:
 
 
 def git_commit(repo_root: Path) -> str:
-    """The current commit, or ``"<sha>-dirty"`` when the tree has changes (SPEC 8.2)."""
+    """The current commit, or ``"<sha>-dirty"`` when the tree has changes (SPEC 8.2).
+
+    Prefers the build-time stamp: inside a container there is no git to ask, and
+    silently answering "unknown" is what let unidentifiable runs be recorded as
+    if they were traceable (D41).
+    """
+    stamped = _stamped_commit()
+    if stamped is not None:
+        return stamped
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],

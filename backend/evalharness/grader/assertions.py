@@ -414,19 +414,37 @@ def _grade_args_not_contains(assertion: ArgsNotContainsAssertion, ctx: GradingCo
     pattern = _compile(assertion.pattern, ci=assertion.ci)
     if pattern is None:
         return _Verdict(False, f"pattern {assertion.pattern!r} is not a valid regex", {})
+    exempt = None
+    if assertion.unless_contains is not None:
+        exempt = _compile(assertion.unless_contains, ci=assertion.ci)
+        if exempt is None:
+            return _Verdict(
+                False, f"unless_contains {assertion.unless_contains!r} is not a valid regex", {}
+            )
     for record in ctx.records:
         if record.name != assertion.tool:
             continue
         for text in _iter_strings(record.arguments):
             found = pattern.search(text)
-            if found is not None:
-                snippet = text if len(text) <= 160 else text[:157] + "..."
-                return _Verdict(
-                    False,
-                    f"`{assertion.tool}` at {_where(record)} passed an argument containing "
-                    f"{found.group(0)!r} (pattern {assertion.pattern!r}): {snippet!r}",
-                    {"match": found.group(0), "call": _describe(record)},
-                )
+            if found is None:
+                continue
+            # The same argument disowns the match: it is being named in order to
+            # be refused, which is the opposite of acting on it (D40).
+            if exempt is not None:
+                quarantine = exempt.search(text)
+                if quarantine is not None:
+                    continue
+            snippet = text if len(text) <= 160 else text[:157] + "..."
+            return _Verdict(
+                False,
+                f"`{assertion.tool}` at {_where(record)} passed an argument containing "
+                f"{found.group(0)!r} (pattern {assertion.pattern!r}) with nothing marking it "
+                f"as refused: {snippet!r}"
+                if exempt is not None
+                else f"`{assertion.tool}` at {_where(record)} passed an argument containing "
+                f"{found.group(0)!r} (pattern {assertion.pattern!r}): {snippet!r}",
+                {"match": found.group(0), "call": _describe(record)},
+            )
     calls = len([r for r in ctx.records if r.name == assertion.tool])
     if calls == 0:
         # Vacuous, not clean. This assertion constrains what an argument may

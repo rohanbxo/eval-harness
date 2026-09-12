@@ -26,6 +26,11 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Set by the operator, e.g.
+        #   GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --build
+        # Empty means the harness refuses to launch a comparison run (D41).
+        GIT_COMMIT: ${GIT_COMMIT:-}
     command: >
       sh -c "alembic upgrade head &&
              uvicorn evalharness.api.app:app --host 0.0.0.0 --port 8000 --reload"
@@ -54,6 +59,11 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Set by the operator, e.g.
+        #   GIT_COMMIT=$(git rev-parse HEAD) docker compose up -d --build
+        # Empty means the harness refuses to launch a comparison run (D41).
+        GIT_COMMIT: ${GIT_COMMIT:-}
     command: >
       celery -A evalharness.worker.app worker
       --loglevel=${CELERY_LOGLEVEL:-INFO} --concurrency=${CELERY_CONCURRENCY:-4}

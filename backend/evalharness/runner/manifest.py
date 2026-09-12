@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from evalharness.loader import is_dirty, load_registry
+from evalharness.loader.hashing import provenance_is_known
 from evalharness.schema.registry import ModelEntry
 
 
@@ -70,12 +71,21 @@ class RunManifest:
     models: list[ModelManifest]
     git_commit: str
     dirty: bool
+    provenance_known: bool = True
+    """False when neither a build stamp nor a git checkout could identify the
+    code. Distinct from ``dirty``: unknown is not clean (DECISIONS D41)."""
     scenario_hashes: dict[str, str] = field(default_factory=dict)
 
     def render(self) -> str:
+        if not self.provenance_known:
+            marker = "  [PROVENANCE UNKNOWN]"
+        elif self.dirty:
+            marker = "  [DIRTY]"
+        else:
+            marker = ""
         lines = [
             "params manifest",
-            f"  commit: {self.git_commit}" + ("  [DIRTY]" if self.dirty else ""),
+            f"  commit: {self.git_commit}{marker}",
         ]
         for scenario_id, digest in sorted(self.scenario_hashes.items()):
             lines.append(f"  scenario {scenario_id:<22} {digest[:12]}")
@@ -95,6 +105,7 @@ def build_manifest(
         models=[ModelManifest.of(registry.get(key)) for key in model_keys],
         git_commit=_short_commit(repo_root),
         dirty=is_dirty(repo_root),
+        provenance_known=provenance_is_known(repo_root),
         scenario_hashes=scenario_hashes or {},
     )
 
@@ -117,6 +128,18 @@ def verify_manifest(
     was built from: the point is to catch a file that no longer says what the
     caller believes, not to confirm the manifest agrees with itself.
     """
+    if not manifest.provenance_known and not allow_dirty:
+        # Fail closed. "unknown" is not a commit, and a tree whose state cannot
+        # be read is not known to be clean -- is_dirty answering False for a
+        # container with no git is exactly how this guard was silently disabled
+        # on the API path for every comparison run (DECISIONS D41).
+        raise ManifestError(
+            "refusing to launch a comparison run whose commit cannot be established: "
+            "no build-time stamp and no readable git checkout, so the run would record "
+            f"{manifest.git_commit!r} and the dirty-tree guard could not have fired. "
+            "Rebuild the image with the GIT_COMMIT build arg, or pass --allow-dirty "
+            "for a throwaway run."
+        )
     if manifest.dirty and not allow_dirty:
         raise ManifestError(
             "refusing to launch a comparison run from a dirty working tree: the run would "

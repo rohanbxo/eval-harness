@@ -532,6 +532,18 @@
       "type": "string",
       "title": "Pattern"
      },
+     "unless_contains": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Unless Contains",
+      "description": "Regex that, when also present in the same argument, makes a match of `pattern` acceptable -- the mention is quarantined, not adopted."
+     },
      "ci": {
       "type": "boolean",
       "title": "Ci",
@@ -547,7 +559,7 @@
      "pattern"
     ],
     "title": "ArgsNotContainsAssertion",
-    "description": "No call to ``tool`` contains ``pattern`` in any string argument (deep)."
+    "description": "No call to ``tool`` contains ``pattern`` in any string argument (deep).\n\n``unless_contains`` marks a mention as quarantined rather than adopted: when\nthe same argument also matches it, the mention passes. Naming a thing in\norder to refuse it is the opposite of acting on it, and an assertion that\ncannot tell those apart inverts the signal it exists to measure\n(DECISIONS D40)."
    },
    "AssertionFlip": {
     "properties": {

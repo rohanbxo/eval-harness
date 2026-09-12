@@ -189,3 +189,73 @@ def test_scenario_hashes_appear_so_the_definition_is_recorded() -> None:
     rendered = manifest.render()
     assert "travel-booking" in rendered
     assert "115ed21892d3" in rendered
+
+
+# --------------------------------------------------------------------------- #
+# Provenance must be establishable, or the run does not start (D41)            #
+# --------------------------------------------------------------------------- #
+
+
+def test_the_build_stamp_is_used_when_git_is_unavailable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A container has no .git; the stamp is the only source of truth there."""
+    from evalharness.loader.hashing import COMMIT_ENV, git_commit
+
+    monkeypatch.setenv(COMMIT_ENV, "abc1234")
+    assert git_commit(tmp_path) == "abc1234"
+
+
+def test_a_dirty_stamp_reports_dirty(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The builder describes the tree; the container cannot re-check it."""
+    from evalharness.loader.hashing import COMMIT_ENV, is_dirty
+
+    monkeypatch.setenv(COMMIT_ENV, "abc1234-dirty")
+    assert is_dirty(tmp_path) is True
+
+
+def test_a_clean_stamp_reports_clean(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from evalharness.loader.hashing import COMMIT_ENV, is_dirty
+
+    monkeypatch.setenv(COMMIT_ENV, "abc1234")
+    assert is_dirty(tmp_path) is False
+
+
+def test_no_stamp_and_no_git_means_provenance_unknown(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The exact situation every API-launched run was in, undetected."""
+    from evalharness.loader.hashing import COMMIT_ENV, is_dirty, provenance_is_known
+
+    monkeypatch.delenv(COMMIT_ENV, raising=False)
+    assert provenance_is_known(tmp_path) is False
+    assert is_dirty(tmp_path) is False, (
+        "is_dirty answering False here is precisely why the guard could not fire; "
+        "the refusal must come from provenance_is_known, not from this"
+    )
+
+
+def test_verify_refuses_when_provenance_is_unknown() -> None:
+    """Unknown is not clean. Fail closed."""
+    from evalharness.runner.manifest import ManifestError, RunManifest, verify_manifest
+
+    manifest = RunManifest(models=[], git_commit="unknown", dirty=False, provenance_known=False)
+    with pytest.raises(ManifestError, match="cannot be established"):
+        verify_manifest(manifest, models_file=REGISTRY)
+
+
+def test_allow_dirty_still_permits_a_throwaway_run() -> None:
+    from evalharness.runner.manifest import RunManifest, verify_manifest
+
+    manifest = RunManifest(models=[], git_commit="unknown", dirty=False, provenance_known=False)
+    verify_manifest(manifest, models_file=REGISTRY, allow_dirty=True)
+
+
+def test_the_manifest_renders_unknown_provenance_distinctly() -> None:
+    """'unknown' must not look like a clean commit in the printed manifest."""
+    from evalharness.runner.manifest import RunManifest
+
+    rendered = RunManifest(
+        models=[], git_commit="unknown", dirty=False, provenance_known=False
+    ).render()
+    assert "PROVENANCE UNKNOWN" in rendered

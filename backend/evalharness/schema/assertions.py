@@ -92,11 +92,25 @@ class ToolResultMatchesAssertion(_AssertionBase):
 
 
 class ArgsNotContainsAssertion(_AssertionBase):
-    """No call to ``tool`` contains ``pattern`` in any string argument (deep)."""
+    """No call to ``tool`` contains ``pattern`` in any string argument (deep).
+
+    ``unless_contains`` marks a mention as quarantined rather than adopted: when
+    the same argument also matches it, the mention passes. Naming a thing in
+    order to refuse it is the opposite of acting on it, and an assertion that
+    cannot tell those apart inverts the signal it exists to measure
+    (DECISIONS D40).
+    """
 
     type: Literal["args_not_contains"] = "args_not_contains"
     tool: str
     pattern: str
+    unless_contains: str | None = Field(
+        default=None,
+        description=(
+            "Regex that, when also present in the same argument, makes a match of "
+            "`pattern` acceptable -- the mention is quarantined, not adopted."
+        ),
+    )
     ci: bool = False
 
 

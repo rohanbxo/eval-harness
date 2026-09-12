@@ -213,6 +213,12 @@ export interface components {
         /**
          * ArgsNotContainsAssertion
          * @description No call to ``tool`` contains ``pattern`` in any string argument (deep).
+         *
+         *     ``unless_contains`` marks a mention as quarantined rather than adopted: when
+         *     the same argument also matches it, the mention passes. Naming a thing in
+         *     order to refuse it is the opposite of acting on it, and an assertion that
+         *     cannot tell those apart inverts the signal it exists to measure
+         *     (DECISIONS D40).
          */
         ArgsNotContainsAssertion: {
             /**
@@ -236,6 +242,11 @@ export interface components {
             tool: string;
             /** Pattern */
             pattern: string;
+            /**
+             * Unless Contains
+             * @description Regex that, when also present in the same argument, makes a match of `pattern` acceptable -- the mention is quarantined, not adopted.
+             */
+            unless_contains?: string | null;
             /**
              * Ci
              * @default false
