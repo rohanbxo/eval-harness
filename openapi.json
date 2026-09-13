@@ -140,6 +140,9 @@
        }
       }
      },
+     "405": {
+      "description": "The deployment is read-only and cannot execute runs."
+     },
      "422": {
       "description": "Validation Error",
       "content": {
@@ -310,6 +313,9 @@
         }
        }
       }
+     },
+     "405": {
+      "description": "The deployment is read-only and cannot execute runs."
      },
      "422": {
       "description": "Validation Error",

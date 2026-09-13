@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getRuns } from "@/lib/api";
 import { formatCost, formatDateTime, formatPercent } from "@/lib/format";
+import { READ_ONLY } from "@/lib/read-only";
 import { RUN_STATUSES, type RunStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -44,12 +45,14 @@ export default async function RunsPage({
         title="Runs"
         description="Every run ever launched, newest first. Runs are never mutated; the database is the record."
         actions={
-          <Button size="sm" asChild>
-            <Link href="/runs/new">
-              <Rocket className="h-4 w-4" />
-              New run
-            </Link>
-          </Button>
+          READ_ONLY ? null : (
+            <Button size="sm" asChild>
+              <Link href="/runs/new">
+                <Rocket className="h-4 w-4" />
+                New run
+              </Link>
+            </Button>
+          )
         }
       />
 
@@ -98,12 +101,16 @@ export default async function RunsPage({
           description={
             model || status
               ? "Try clearing the filter."
-              : "Launch a run to start collecting traces. The FakeModel entry needs no API key."
+              : READ_ONLY
+                ? "This demo serves a recorded run, so nothing new appears here."
+                : "Launch a run to start collecting traces. The FakeModel entry needs no API key."
           }
           action={
-            <Button size="sm" asChild>
-              <Link href="/runs/new">Launch the first run</Link>
-            </Button>
+            READ_ONLY ? undefined : (
+              <Button size="sm" asChild>
+                <Link href="/runs/new">Launch the first run</Link>
+              </Button>
+            )
           }
         />
       ) : (

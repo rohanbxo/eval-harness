@@ -6,6 +6,7 @@ import { Activity } from "lucide-react";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
+import { READ_ONLY } from "@/lib/read-only";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -45,9 +46,11 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Button size="sm" asChild>
-            <Link href="/runs/new">New run</Link>
-          </Button>
+          {READ_ONLY ? null : (
+            <Button size="sm" asChild>
+              <Link href="/runs/new">New run</Link>
+            </Button>
+          )}
           <ThemeToggle />
         </div>
       </div>

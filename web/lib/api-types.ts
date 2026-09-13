@@ -2124,6 +2124,13 @@ export interface operations {
                     "application/json": components["schemas"]["RunDetail"];
                 };
             };
+            /** @description The deployment is read-only and cannot execute runs. */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -2185,6 +2192,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CancelResponse"];
                 };
+            };
+            /** @description The deployment is read-only and cannot execute runs. */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

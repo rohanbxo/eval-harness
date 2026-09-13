@@ -67,7 +67,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["evalharness/db/migrations/"]
 
 [[tool.mypy.overrides]]
-module = ["litellm.*", "celery.*", "jsonschema.*", "sse_starlette.*"]
+module = ["litellm.*", "celery.*", "jsonschema.*", "sse_starlette.*", "asyncpg.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

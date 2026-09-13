@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRunStream } from "@/hooks/use-run-stream";
 import { cancelRun, fetchRun } from "@/lib/client-api";
+import { READ_ONLY } from "@/lib/read-only";
 import { formatCost, formatDateTime, formatMs, formatPercent, formatScore, formatTokens } from "@/lib/format";
 import type { Attempt, AttemptStatus, RunDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -114,7 +115,7 @@ export function RunLiveView({ initialRun }: { initialRun: RunDetail }) {
               <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
               Refresh
             </Button>
-            {live ? (
+            {live && !READ_ONLY ? (
               <Button
                 variant="destructive"
                 size="sm"

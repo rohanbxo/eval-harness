@@ -25,6 +25,18 @@ logger = logging.getLogger(__name__)
 ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
+def allowed_origins() -> list[str]:
+    """Dev origins plus whatever the deployment adds.
+
+    A deployed dashboard is served from its own domain and its client components
+    fetch the API from the browser, so that origin has to be allowed explicitly.
+    Kept additive: a deployment never loses the local dev origins.
+    """
+    settings = get_settings()
+    extra = [origin for origin in settings.extra_cors_origins if origin not in ALLOWED_ORIGINS]
+    return [*ALLOWED_ORIGINS, *extra]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Own the database engine for the app's event loop.
@@ -55,7 +67,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
+        allow_origins=allowed_origins(),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

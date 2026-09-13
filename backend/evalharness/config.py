@@ -58,10 +58,31 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("EVALHARNESS_ENABLE_JUDGE", "enable_judge"),
         description="LLM-judge assertions are non-deterministic and off unless enabled.",
     )
+    read_only: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("EVALHARNESS_READ_ONLY", "read_only"),
+        description=(
+            "Reject every write endpoint with 405. Set on the public demo, which "
+            "serves a frozen snapshot and holds no model credentials."
+        ),
+    )
+    cors_origins: str = Field(
+        default="",
+        validation_alias=AliasChoices("EVALHARNESS_CORS_ORIGINS", "cors_origins"),
+        description=(
+            "Extra browser origins allowed to call the API, comma-separated. The "
+            "dashboard's dev origins are always allowed; a deployment adds its own."
+        ),
+    )
     log_level: str = Field(
         default="INFO",
         validation_alias=AliasChoices("LOG_LEVEL", "log_level"),
     )
+
+    @property
+    def extra_cors_origins(self) -> list[str]:
+        """`cors_origins` split and cleaned. An empty setting means no extras."""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
 
 @lru_cache(maxsize=1)

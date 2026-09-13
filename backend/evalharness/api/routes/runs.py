@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
@@ -72,12 +72,35 @@ async def _require_affordable(
         )
 
 
+#: Every write endpoint carries this. A read-only deployment serves a frozen
+#: snapshot and holds no model credentials, so launching or cancelling a run is
+#: not "temporarily unavailable" -- the method is not supported at all, which is
+#: what 405 says. 503 would invite a retry that can never succeed.
+def reject_when_read_only() -> None:
+    """Refuse a write when ``EVALHARNESS_READ_ONLY`` is set."""
+    if settings().read_only:
+        raise HTTPException(
+            status.HTTP_405_METHOD_NOT_ALLOWED,
+            "this deployment is read-only: it serves a recorded run and cannot launch one",
+        )
+
+
+READ_ONLY_GUARD = Depends(reject_when_read_only)
+
+#: Documented on both write routes so the generated client knows it can happen.
+READ_ONLY_RESPONSE: dict[int | str, dict[str, str]] = {
+    405: {"description": "The deployment is read-only and cannot execute runs."}
+}
+
+
 @router.post(
     "/runs",
     response_model=schemas.RunDetail,
     status_code=status.HTTP_201_CREATED,
     operation_id="createRun",
     summary="Create a run and queue it for execution",
+    dependencies=[READ_ONLY_GUARD],
+    responses=READ_ONLY_RESPONSE,
 )
 async def create_run(body: schemas.RunCreate, session: SessionDep) -> schemas.RunDetail:
     registry = get_registry()
@@ -230,6 +253,8 @@ async def get_run(run_id: str, session: SessionDep) -> schemas.RunDetail:
     response_model=schemas.CancelResponse,
     operation_id="cancelRun",
     summary="Cancel a queued or running run",
+    dependencies=[READ_ONLY_GUARD],
+    responses=READ_ONLY_RESPONSE,
 )
 async def cancel_run(run_id: str, session: SessionDep) -> schemas.CancelResponse:
     """Set the cancellation flag that attempts check between model calls.

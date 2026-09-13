@@ -49,6 +49,14 @@ jobs:
         run: uv run ruff format --check .
       - name: Mypy (strict)
         run: uv run mypy .
+      # deploy/ is real Python that runs in production (it migrates and seeds the
+      # public demo), but it lives outside the package so `mypy .` above never
+      # reaches it. Checked explicitly rather than left to rot unchecked.
+      - name: Ruff and mypy on the deploy scripts
+        run: |
+          uv run ruff check ../deploy
+          uv run ruff format --check ../deploy
+          uv run mypy ../deploy/seed.py ../deploy/verify.py
       - name: Pytest
         run: uv run pytest --cov --cov-report=term-missing
       # This guard exists because the limiter test was once skipif-guarded on an

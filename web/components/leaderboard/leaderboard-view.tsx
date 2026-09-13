@@ -14,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCost, formatMs, formatPercent, shortHash } from "@/lib/format";
 import { AXES, type Axis, type AxisScores, type LeaderboardCell, type LeaderboardResponse } from "@/lib/types";
+import { READ_ONLY } from "@/lib/read-only";
 import { cn } from "@/lib/utils";
 
 type SortKey = "score" | "cost" | "latency" | "name";
@@ -189,11 +190,17 @@ export function LeaderboardView({ data }: { data: LeaderboardResponse }) {
     return (
       <EmptyState
         title="No completed runs yet"
-        description="The leaderboard aggregates the latest completed run per model per config hash. Launch a run to populate it."
+        description={
+          READ_ONLY
+            ? "The leaderboard aggregates the latest completed run per model per config hash. This demo's snapshot appears to be missing - the seed did not load."
+            : "The leaderboard aggregates the latest completed run per model per config hash. Launch a run to populate it."
+        }
         action={
-          <Button size="sm" asChild>
-            <Link href="/runs/new">Launch a run</Link>
-          </Button>
+          READ_ONLY ? undefined : (
+            <Button size="sm" asChild>
+              <Link href="/runs/new">Launch a run</Link>
+            </Button>
+          )
         }
       />
     );
