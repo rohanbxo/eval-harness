@@ -48,4 +48,9 @@ COPY --from=build /app/.next/static ./.next/static
 # if static assets are ever introduced -- standalone does not include them.
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+# server.js binds to $HOSTNAME and listens on $PORT. Docker sets HOSTNAME to the
+# container ID at runtime, so Next bound to that one interface and Railway's proxy
+# got "Application failed to respond". It is forced here rather than with ENV,
+# which the runtime value overrides. PORT is left alone: Railway sets it, and
+# PORT=3000 above is only the local default.
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node server.js"]
