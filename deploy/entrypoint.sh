@@ -8,6 +8,10 @@
 # container down where Railway will show it.
 set -e
 
+# Name the host before connecting: a bad DATABASE_URL otherwise surfaces only as
+# a DNS error deep in a traceback that never says which name failed to resolve.
+python -c "from evalharness.db.session import describe_database_target, resolve_database_url; print('entrypoint:', describe_database_target(resolve_database_url()))"
+
 echo "entrypoint: applying migrations"
 alembic upgrade head
 

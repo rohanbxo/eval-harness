@@ -14,7 +14,8 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import event
+from sqlalchemy import event, make_url
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -48,6 +49,22 @@ def resolve_database_url(url: str | None = None) -> str:
     from evalharness.config import get_settings
 
     return normalize_database_url(get_settings().database_url)
+
+
+def describe_database_target(url: str) -> str:
+    """Where ``url`` points, for a boot log: host, port and database, never credentials.
+
+    A URL that does not parse is reported as such without echoing it, because the
+    unparsed text may still contain a password.
+    """
+    try:
+        parsed = make_url(url)
+    except ArgumentError:
+        return "database target: <unparseable DATABASE_URL>"
+    return (
+        f"database target: host={parsed.host or '<none>'} "
+        f"port={parsed.port or '<default>'} database={parsed.database or '<none>'}"
+    )
 
 
 @dataclass(frozen=True)
