@@ -51,6 +51,12 @@ EVALHARNESS_READ_ONLY   = true
 LOG_LEVEL               = INFO
 ```
 
+Railway starts building as soon as the repo is connected, before these variables
+exist, so that first build falls back to Railpack on the repo root and fails with
+"Railpack could not determine how to build the app". That is expected: set the
+variables, then **Deploy** again. If a later build shows the same error, the
+`RAILWAY_DOCKERFILE_PATH` variable is missing or misspelled on that service.
+
 `DATABASE_URL` arrives as `postgresql://`; `normalize_database_url` rewrites it to
 `postgresql+asyncpg://`, so no driver suffix is needed here.
 
